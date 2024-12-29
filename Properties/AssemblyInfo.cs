@@ -117,6 +117,6 @@ The **Live Stack** panel includes several useful features:
 [assembly: AssemblyTrademark("")]
 // [Unused]
 [assembly: AssemblyCulture("")]
-//#if DEBUG
+#if DEBUG
 [assembly: XmlnsDefinition("debug-mode", "Namespace")]
-//#endif
+#endif

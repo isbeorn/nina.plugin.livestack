@@ -40,20 +40,20 @@
         </mini:MiniSequenceItem>
     </DataTemplate>
 
-    <!--<mc:AlternateContent>
-        <mc:Choice Requires="d">-->
-    <DataTemplate DataType="{x:Type local:CameraSimulatorDirectory}">
-        <DataTemplate.Resources>
-            <BooleanToVisibilityConverter x:Key="VisibilityConverter" />
-        </DataTemplate.Resources>
-        <nina:SequenceBlockView>
-            <nina:SequenceBlockView.SequenceItemContent>
-                <StackPanel Orientation="Horizontal">
-                    <TextBox VerticalAlignment="Center" Text="{Binding Directory}" />
-                </StackPanel>
-            </nina:SequenceBlockView.SequenceItemContent>
-        </nina:SequenceBlockView>
-    </DataTemplate>
-    <!--</mc:Choice>
-    </mc:AlternateContent>-->
+    <mc:AlternateContent>
+        <mc:Choice Requires="d">
+            <DataTemplate DataType="{x:Type local:CameraSimulatorDirectory}">
+                <DataTemplate.Resources>
+                    <BooleanToVisibilityConverter x:Key="VisibilityConverter" />
+                </DataTemplate.Resources>
+                <nina:SequenceBlockView>
+                    <nina:SequenceBlockView.SequenceItemContent>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBox VerticalAlignment="Center" Text="{Binding Directory}" />
+                        </StackPanel>
+                    </nina:SequenceBlockView.SequenceItemContent>
+                </nina:SequenceBlockView>
+            </DataTemplate>
+        </mc:Choice>
+    </mc:AlternateContent>
 </ResourceDictionary>

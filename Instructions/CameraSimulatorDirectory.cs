@@ -18,7 +18,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 namespace NINA.Plugin.Livestack.Instructions {
-    //#if DEBUG
+#if DEBUG
 
     [ExportMetadata("Name", "CameraSimulatorDirectory")]
     [ExportMetadata("Description", "")]
@@ -27,7 +27,6 @@ namespace NINA.Plugin.Livestack.Instructions {
     [Export(typeof(ISequenceItem))]
     [JsonObject(MemberSerialization.OptIn)]
     public partial class CameraSimulatorDirectory : SequenceItem {
-
         [ImportingConstructor]
         public CameraSimulatorDirectory(ICameraMediator cameraMediator) {
             this.cameraMediator = cameraMediator;
@@ -68,5 +67,5 @@ namespace NINA.Plugin.Livestack.Instructions {
         }
     }
 
-    //#endif
+#endif
 }
