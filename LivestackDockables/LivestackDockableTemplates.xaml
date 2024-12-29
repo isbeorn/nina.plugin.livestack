@@ -1,0 +1,722 @@
+﻿<ResourceDictionary
+    x:Class="NINA.Plugin.Livestack.LivestackDockables.MyPluginDockableTemplates"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:alt="clr-namespace:NINA.WPF.Base.View;assembly=NINA.WPF.Base"
+    xmlns:local="clr-namespace:NINA.Plugin.Livestack.LivestackDockables"
+    xmlns:mini="clr-namespace:NINA.View.Sequencer.MiniSequencer;assembly=NINA.Sequencer"
+    xmlns:nina="clr-namespace:NINA.View.Sequencer;assembly=NINA.Sequencer"
+    xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary"
+    xmlns:ns="clr-namespace:NINA.Core.Locale;assembly=NINA.Core"
+    xmlns:root="clr-namespace:NINA.Plugin.Livestack"
+    xmlns:util="clr-namespace:NINA.Core.Utility;assembly=NINA.Core"
+    xmlns:wpfbase="clr-namespace:NINA.WPF.Base.View;assembly=NINA.WPF.Base">
+
+    <!--  The datatemplae for the dockable is indicated by the fully qualified class name and the postfix _Dockable  -->
+    <DataTemplate x:Key="NINA.Plugin.Livestack.LivestackDockables.LivestackDockable_Dockable">
+        <Grid x:Name="PART_TheGrid" Margin="5">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <Expander VerticalAlignment="Center" IsExpanded="{Binding IsExpanded}">
+                    <Expander.Header>
+                        <Grid HorizontalAlignment="Stretch">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition />
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Text="Live Stack Options" />
+                            <StackPanel
+                                Grid.Column="1"
+                                Margin="0,0,-50,0"
+                                HorizontalAlignment="Right"
+                                Orientation="Horizontal"
+                                Visibility="{Binding StartLiveStackCommand.IsRunning, Converter={StaticResource VisibilityConverter}}">
+                                <TextBlock VerticalAlignment="Center" Text="Items in queue: " />
+                                <TextBlock VerticalAlignment="Center" Text="{Binding QueueEntries}" />
+                            </StackPanel>
+                            <ninactrl:AsyncProcessButton
+                                Grid.Column="2"
+                                Height="25"
+                                MinWidth="150"
+                                Margin="5,6,0,6"
+                                Padding="5"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                ButtonText="Start Live Stack"
+                                CancelButtonImage="{DynamicResource StopSVG}"
+                                CancelCommand="{Binding StartLiveStackCancelCommand}"
+                                Command="{Binding StartLiveStackCommand}" />
+                        </Grid>
+                    </Expander.Header>
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <TextBlock HorizontalAlignment="Center" Text="Single Session Flat Library" />
+                        <DataGrid
+                            Grid.Row="1"
+                            Margin="0,5,0,0"
+                            AutoGenerateColumns="False"
+                            CanUserAddRows="False"
+                            DataContext="{x:Static root:LivestackMediator.CalibrationVM}"
+                            ItemsSource="{Binding SessionFlatLibrary}"
+                            SelectionMode="Single"
+                            VerticalScrollBarVisibility="Auto">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Width="2*" Header="File Location">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock VerticalAlignment="Center" Text="{Binding Path}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="*" Header="Filter">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock VerticalAlignment="Center" Text="{Binding Filter}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="*" Header="Width">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock VerticalAlignment="Center" Text="{Binding Width}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="*" Header="Height">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock VerticalAlignment="Center" Text="{Binding Height}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="30" Header="">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button
+                                                Command="{Binding Path=DeleteSessionFlatMasterCommand, Source={x:Static root:LivestackMediator.CalibrationVM}}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource BackgroundButton}">
+                                                <Path
+                                                    Height="15"
+                                                    Margin="0"
+                                                    Data="{StaticResource TrashCanSVG}"
+                                                    Fill="{StaticResource ButtonForegroundBrush}"
+                                                    Stretch="Uniform" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Button
+                            Grid.Row="2"
+                            Height="25"
+                            Margin="0,5,0,5"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Command="{Binding AddSessionFlatMasterCommand}"
+                            DataContext="{x:Static root:LivestackMediator.CalibrationVM}">
+                            Add Flat Master
+                        </Button>
+                        <Border
+                            Grid.Row="3"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" />
+                        <TextBlock
+                            Grid.Row="4"
+                            Margin="0,5,0,0"
+                            HorizontalAlignment="Center"
+                            Text="Quality Gates" />
+                        <DataGrid
+                            Grid.Row="5"
+                            Margin="0,5,0,0"
+                            AutoGenerateColumns="False"
+                            CanUserAddRows="False"
+                            ItemsSource="{Binding QualityGates}"
+                            SelectionMode="Single"
+                            VerticalScrollBarVisibility="Auto">
+                            <DataGrid.Columns>
+                                <DataGridTemplateColumn Width="*" Header="Name">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock VerticalAlignment="Center" Text="{Binding Name}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="*" Header="Value">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBlock VerticalAlignment="Center" Text="{Binding Value}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                    <DataGridTemplateColumn.CellEditingTemplate>
+                                        <DataTemplate>
+                                            <TextBox VerticalAlignment="Center" Text="{Binding Value}" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellEditingTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTemplateColumn Width="30" Header="">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button
+                                                Command="{Binding DataContext.DeleteQualityGateCommand, ElementName=PART_TheGrid}"
+                                                CommandParameter="{Binding}"
+                                                Style="{StaticResource BackgroundButton}">
+                                                <Path
+                                                    Height="15"
+                                                    Margin="0"
+                                                    Data="{StaticResource TrashCanSVG}"
+                                                    Fill="{StaticResource ButtonForegroundBrush}"
+                                                    Stretch="Uniform" />
+                                            </Button>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Button
+                            Grid.Row="6"
+                            Height="25"
+                            Margin="0,5,0,5"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Command="{Binding AddQualityGateCommand}">
+                            Add quality gate
+                        </Button>
+                        <Border
+                            Grid.Row="7"
+                            BorderBrush="{StaticResource BorderBrush}"
+                            BorderThickness="1" />
+                        <Button
+                            Grid.Row="8"
+                            Height="25"
+                            Margin="0,5,0,5"
+                            HorizontalAlignment="Stretch"
+                            VerticalAlignment="Top"
+                            Command="{Binding AddColorCombinationCommand}">
+                            Add color combination
+                        </Button>
+                    </Grid>
+                </Expander>
+            </Grid>
+
+            <TabControl
+                Grid.Row="1"
+                ItemsSource="{Binding Tabs}"
+                SelectedItem="{Binding SelectedTab}">
+                <TabControl.ItemContainerStyle>
+                    <Style TargetType="TabItem">
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="TabItem">
+                                    <Border
+                                        Name="PART_Border"
+                                        Margin="-1,2,0,0"
+                                        BorderBrush="{StaticResource BorderBrush}"
+                                        BorderThickness="1,0,1,0">
+                                        <StackPanel
+                                            Name="PART_Panel"
+                                            Height="25"
+                                            Orientation="Horizontal">
+                                            <TextBlock
+                                                Margin="5,0,0,0"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Target}" />
+                                            <TextBlock VerticalAlignment="Center" Text=" - " />
+                                            <TextBlock
+                                                Margin="0,0,2,0"
+                                                VerticalAlignment="Center"
+                                                Text="{Binding Filter}" />
+
+                                            <ninactrl:LoadingControl
+                                                x:Name="PART_Processing"
+                                                Width="20"
+                                                Height="20"
+                                                Margin="2.5"
+                                                Visibility="{Binding Locked, Converter={StaticResource VisibilityConverter}}" />
+                                            <Button
+                                                x:Name="PART_Close"
+                                                Width="25"
+                                                Height="25"
+                                                Margin="2,0,0,0"
+                                                HorizontalAlignment="Right"
+                                                Command="{Binding DataContext.RemoveTabCommand, ElementName=PART_TheGrid}"
+                                                CommandParameter="{Binding}">
+                                                <Path
+                                                    Margin="5"
+                                                    Data="{StaticResource TrashCanSVG}"
+                                                    Fill="{StaticResource ButtonForegroundBrush}"
+                                                    Stretch="Uniform" />
+                                            </Button>
+                                        </StackPanel>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="False">
+                                            <Setter TargetName="PART_Close" Property="Visibility" Value="Hidden" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="True">
+                                            <Setter TargetName="PART_Panel" Property="Background" Value="{StaticResource ButtonBackgroundBrush}" />
+                                        </Trigger>
+                                        <Trigger Property="IsSelected" Value="False">
+                                            <Setter TargetName="PART_Panel" Property="Background" Value="{StaticResource BackgroundBrush}" />
+                                        </Trigger>
+                                        <Trigger SourceName="PART_Panel" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="PART_Panel" Property="Background" Value="{StaticResource ButtonBackgroundSelectedBrush}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </TabControl.ItemContainerStyle>
+                <TabControl.ContentTemplate>
+                    <DataTemplate>
+                        <wpfbase:ImageView
+                            Image="{Binding StackImage, IsAsync=True}"
+                            ImageFlip="{Binding ImageFlipValue}"
+                            ImageRotation="{Binding ImageRotation}"
+                            ScrollEnabled="True">
+                            <wpfbase:ImageView.Resources>
+                                <DataTemplate x:Key="FilterTabHeaderOptions">
+                                    <StackPanel
+                                        Margin="5,0,0,0"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top"
+                                        Orientation="Horizontal">
+
+                                        <TextBlock
+                                            Margin="5,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Text="Images in stack: " />
+                                        <TextBlock
+                                            Margin="0,0,5,0"
+                                            VerticalAlignment="Center"
+                                            Text="{Binding StackCount}" />
+                                        <Button
+                                            Width="35"
+                                            Margin="2.5"
+                                            Command="{Binding RotateImageCommand}">
+                                            <Button.ToolTip>
+                                                <ToolTip ToolTipService.ShowOnDisabled="True">
+                                                    <TextBlock Text="{ns:Loc LblRotateImageTooltip}" />
+                                                </ToolTip>
+                                            </Button.ToolTip>
+                                            <Path
+                                                Margin="5"
+                                                Data="{StaticResource RotatorSVG}"
+                                                Fill="{StaticResource ButtonForegroundDisabledBrush}"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                Stretch="Uniform"
+                                                UseLayoutRounding="True">
+                                                <Path.RenderTransform>
+                                                    <ScaleTransform ScaleX="-1.0" />
+                                                </Path.RenderTransform>
+                                            </Path>
+                                        </Button>
+                                        <Button
+                                            Width="35"
+                                            Margin="2.5"
+                                            Command="{Binding ImageFlipCommand}">
+                                            <Button.ToolTip>
+                                                <ToolTip ToolTipService.ShowOnDisabled="True">
+                                                    <TextBlock Text="{ns:Loc LblFlipImageTooltip}" />
+                                                </ToolTip>
+                                            </Button.ToolTip>
+                                            <Path
+                                                Margin="5"
+                                                Data="{StaticResource FlipHorizontalSVG}"
+                                                Fill="{StaticResource ButtonForegroundDisabledBrush}"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                Stretch="Uniform"
+                                                UseLayoutRounding="True" />
+                                        </Button>
+                                        <Grid HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <local:PopupButton
+                                                Margin="2.5"
+                                                CloseCommand="{Binding RefreshCommand}"
+                                                FocusIndex="0,1">
+                                                <local:PopupButton.PopupContent>
+                                                    <StackPanel
+                                                        HorizontalAlignment="Right"
+                                                        VerticalAlignment="Center"
+                                                        Grid.IsSharedSizeScope="True"
+                                                        Orientation="Vertical">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                                <ColumnDefinition SharedSizeGroup="Slider" />
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock VerticalAlignment="Center" Text="Stretch factor: " />
+                                                            <Slider
+                                                                Grid.Column="1"
+                                                                MinWidth="300"
+                                                                VerticalAlignment="Center"
+                                                                Maximum="1"
+                                                                Minimum="0"
+                                                                TickFrequency="0.1"
+                                                                Value="{Binding StretchFactor, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                Grid.Column="2"
+                                                                MinWidth="40"
+                                                                Margin="5,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                HorizontalContentAlignment="Right"
+                                                                Text="{Binding StretchFactor, StringFormat=N2}" />
+                                                        </Grid>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                                <ColumnDefinition SharedSizeGroup="Slider" />
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock VerticalAlignment="Center" Text="Black clipping: " />
+                                                            <Slider
+                                                                Grid.Column="1"
+                                                                MinWidth="300"
+                                                                VerticalAlignment="Center"
+                                                                Maximum="0"
+                                                                Minimum="-10"
+                                                                TickFrequency="1"
+                                                                Value="{Binding BlackClipping, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                Grid.Column="2"
+                                                                MinWidth="40"
+                                                                Margin="5,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                HorizontalContentAlignment="Right"
+                                                                Text="{Binding BlackClipping, StringFormat=N2}" />
+                                                        </Grid>
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                                <ColumnDefinition SharedSizeGroup="Slider" />
+                                                                <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock VerticalAlignment="Center" Text="Downsample: " />
+                                                            <Slider
+                                                                Grid.Column="1"
+                                                                MinWidth="300"
+                                                                VerticalAlignment="Center"
+                                                                IsSnapToTickEnabled="True"
+                                                                Maximum="4"
+                                                                Minimum="1"
+                                                                TickFrequency="1"
+                                                                Value="{Binding Downsample, Mode=TwoWay}" />
+                                                            <TextBox
+                                                                Grid.Column="2"
+                                                                MinWidth="40"
+                                                                Margin="5,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                HorizontalContentAlignment="Right"
+                                                                Text="{Binding Downsample, StringFormat=N0}" />
+                                                        </Grid>
+                                                    </StackPanel>
+                                                </local:PopupButton.PopupContent>
+                                            </local:PopupButton>
+                                        </Grid>
+                                    </StackPanel>
+                                </DataTemplate>
+                                <DataTemplate x:Key="ColorTabHeaderOptions">
+                                    <StackPanel
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Center"
+                                        Orientation="Horizontal">
+
+                                        <TextBlock
+                                            Margin="5,0,0,0"
+                                            VerticalAlignment="Center"
+                                            Text="Images in stack: " />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding StackCountRed}" />
+                                        <TextBlock VerticalAlignment="Center" Text=" | " />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding StackCountGreen}" />
+                                        <TextBlock VerticalAlignment="Center" Text=" | " />
+                                        <TextBlock
+                                            Margin="0,0,5,0"
+                                            VerticalAlignment="Center"
+                                            Text="{Binding StackCountBlue}" />
+                                        <Button
+                                            Width="35"
+                                            Margin="2.5"
+                                            Command="{Binding RotateImageCommand}">
+                                            <Button.ToolTip>
+                                                <ToolTip ToolTipService.ShowOnDisabled="True">
+                                                    <TextBlock Text="{ns:Loc LblRotateImageTooltip}" />
+                                                </ToolTip>
+                                            </Button.ToolTip>
+                                            <Path
+                                                Margin="5"
+                                                Data="{StaticResource RotatorSVG}"
+                                                Fill="{StaticResource ButtonForegroundDisabledBrush}"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                Stretch="Uniform"
+                                                UseLayoutRounding="True">
+                                                <Path.RenderTransform>
+                                                    <ScaleTransform ScaleX="-1.0" />
+                                                </Path.RenderTransform>
+                                            </Path>
+                                        </Button>
+                                        <Button
+                                            Width="35"
+                                            Margin="2.5"
+                                            Command="{Binding ImageFlipCommand}">
+                                            <Button.ToolTip>
+                                                <ToolTip ToolTipService.ShowOnDisabled="True">
+                                                    <TextBlock Text="{ns:Loc LblFlipImageTooltip}" />
+                                                </ToolTip>
+                                            </Button.ToolTip>
+                                            <Path
+                                                Margin="5"
+                                                Data="{StaticResource FlipHorizontalSVG}"
+                                                Fill="{StaticResource ButtonForegroundDisabledBrush}"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                Stretch="Uniform"
+                                                UseLayoutRounding="True" />
+                                        </Button>
+                                        <local:PopupButton
+                                            Margin="2.5"
+                                            CloseCommand="{Binding RefreshCommand}"
+                                            FocusIndex="0,1">
+                                            <local:PopupButton.PopupContent>
+                                                <StackPanel
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Grid.IsSharedSizeScope="True"
+                                                    Orientation="Vertical">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="Red stretch factor: " />
+                                                        <Slider
+                                                            Grid.Column="1"
+                                                            MinWidth="300"
+                                                            VerticalAlignment="Center"
+                                                            Maximum="1"
+                                                            Minimum="0"
+                                                            TickFrequency="0.1"
+                                                            Value="{Binding RedStretchFactor, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding RedStretchFactor, StringFormat=N2}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="Red black clipping: " />
+                                                        <Slider
+                                                            Grid.Column="1"
+                                                            MinWidth="300"
+                                                            VerticalAlignment="Center"
+                                                            Maximum="0"
+                                                            Minimum="-10"
+                                                            TickFrequency="1"
+                                                            Value="{Binding RedBlackClipping, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding RedBlackClipping, StringFormat=N2}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="Green stretch factor: " />
+                                                        <Slider
+                                                            Grid.Column="1"
+                                                            MinWidth="300"
+                                                            VerticalAlignment="Center"
+                                                            Maximum="1"
+                                                            Minimum="0"
+                                                            TickFrequency="0.1"
+                                                            Value="{Binding GreenStretchFactor, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding GreenStretchFactor, StringFormat=N2}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="Green black clipping: " />
+                                                        <Slider
+                                                            Grid.Column="1"
+                                                            MinWidth="300"
+                                                            VerticalAlignment="Center"
+                                                            Maximum="0"
+                                                            Minimum="-10"
+                                                            TickFrequency="1"
+                                                            Value="{Binding GreenBlackClipping, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding GreenBlackClipping, StringFormat=N2}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="Blue stretch factor: " />
+                                                        <Slider
+                                                            Grid.Column="1"
+                                                            MinWidth="300"
+                                                            VerticalAlignment="Center"
+                                                            Maximum="1"
+                                                            Minimum="0"
+                                                            TickFrequency="0.1"
+                                                            Value="{Binding BlueStretchFactor, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding BlueStretchFactor, StringFormat=N2}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="Blue black clipping: " />
+                                                        <Slider
+                                                            Grid.Column="1"
+                                                            MinWidth="300"
+                                                            VerticalAlignment="Center"
+                                                            Maximum="0"
+                                                            Minimum="-10"
+                                                            TickFrequency="1"
+                                                            Value="{Binding BlueBlackClipping, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding BlueBlackClipping, StringFormat=N2}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="De-Noise Green: " />
+                                                        <Grid Grid.Column="1">
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width=" Auto" />
+                                                                <ColumnDefinition />
+                                                            </Grid.ColumnDefinitions>
+                                                            <CheckBox
+                                                                HorizontalAlignment="Left"
+                                                                VerticalAlignment="Center"
+                                                                IsChecked="{Binding EnableGreenDeNoise, Mode=TwoWay}" />
+                                                            <Slider
+                                                                Grid.Column="1"
+                                                                Margin="5,0,0,0"
+                                                                HorizontalAlignment="Stretch"
+                                                                VerticalAlignment="Center"
+                                                                Maximum="1"
+                                                                Minimum="0"
+                                                                TickFrequency="0.1"
+                                                                Value="{Binding GreenDeNoiseAmount, Mode=TwoWay}" />
+                                                        </Grid>
+                                                        <TextBox
+                                                            Grid.Column="3"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding GreenDeNoiseAmount, StringFormat=N2}" />
+                                                    </Grid>
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Label" />
+                                                            <ColumnDefinition SharedSizeGroup="Slider" />
+                                                            <ColumnDefinition Width="Auto" SharedSizeGroup="Input" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <TextBlock VerticalAlignment="Center" Text="Downsample: " />
+                                                        <Slider
+                                                            Grid.Column="1"
+                                                            MinWidth="300"
+                                                            VerticalAlignment="Center"
+                                                            IsSnapToTickEnabled="True"
+                                                            Maximum="4"
+                                                            Minimum="1"
+                                                            TickFrequency="1"
+                                                            Value="{Binding Downsample, Mode=TwoWay}" />
+                                                        <TextBox
+                                                            Grid.Column="2"
+                                                            MinWidth="40"
+                                                            Margin="5,0,0,0"
+                                                            VerticalAlignment="Center"
+                                                            HorizontalContentAlignment="Right"
+                                                            Text="{Binding Downsample, StringFormat=N0}" />
+                                                    </Grid>
+                                                </StackPanel>
+                                            </local:PopupButton.PopupContent>
+                                        </local:PopupButton>
+                                    </StackPanel>
+                                </DataTemplate>
+
+                                <local:TabTemplateSelector
+                                    x:Key="TabHeaderTemplateSelector"
+                                    ColorCombinationTab="{StaticResource ColorTabHeaderOptions}"
+                                    LiveStackTab="{StaticResource FilterTabHeaderOptions}" />
+                            </wpfbase:ImageView.Resources>
+                            <wpfbase:ImageView.ButtonHeaderContent>
+                                <ContentControl Content="{Binding .}" ContentTemplateSelector="{StaticResource TabHeaderTemplateSelector}" />
+                            </wpfbase:ImageView.ButtonHeaderContent>
+                        </wpfbase:ImageView>
+                    </DataTemplate>
+                </TabControl.ContentTemplate>
+            </TabControl>
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>

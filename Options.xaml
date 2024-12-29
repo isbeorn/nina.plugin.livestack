@@ -1,0 +1,732 @@
+﻿<ResourceDictionary
+    x:Class="NINA.Plugin.Livestack.Options"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:image="clr-namespace:NINA.Plugin.Livestack.Image"
+    xmlns:local="clr-namespace:NINA.Plugin.Livestack"
+    xmlns:ninactrl="clr-namespace:NINA.CustomControlLibrary;assembly=NINA.CustomControlLibrary"
+    xmlns:ns="clr-namespace:NINA.Core.Locale;assembly=NINA.Core"
+    xmlns:prompts="clr-namespace:NINA.Plugin.Livestack.LivestackDockables"
+    xmlns:rules="clr-namespace:NINA.Core.Utility.ValidationRules;assembly=NINA.Core"
+    xmlns:s="clr-namespace:System;assembly=mscorlib"
+    xmlns:util="clr-namespace:NINA.Core.Utility;assembly=NINA.Core">
+
+    <GeometryGroup x:Key="Livestack_StackFlatsSVG">
+        <PathGeometry Figures="M 3.56038e-005,0.365295L 3.56038e-005,502.667L 812.745,502.667L 812.745,0.365295M 403.328,39.9533C 604.213,39.9533 767.068,134.672 767.068,251.516C 767.068,368.36 604.219,463.079 403.328,463.079C 202.443,463.079 39.5894,368.36 39.5934,251.516C 39.5934,134.672 202.443,39.9533 403.328,39.9533 Z " />
+    </GeometryGroup>
+    <GeometryGroup x:Key="Livestack_StackSVG">
+        <PathGeometry Figures="M 61.1507,0.0306778L 0,26.552L 61.412,51.5093L 122.88,26.6293M 122.88,57.1507L 95.4587,45.3427L 62.7293,58.5933C 61.8493,58.952 60.9013,58.9213 60.0787,58.5933L 27.2707,45.2493L 0,57.0827L 61.412,82.0307M 96.14,75.5933L 62.7293,89.1093C 61.8493,89.468 60.9013,89.4427 60.0787,89.1093L 26.588,75.5L 0,87.0413L 61.412,112L 122.88,87.1187" />
+    </GeometryGroup>
+
+    <GeometryGroup x:Key="Livestack_StackStopSVG">
+        <PathGeometry Figures="M 53.6613,14.792C 40.2907,20.5893 26.916,26.3907 13.5413,32.1933C 26.9733,37.652 40.4,43.1093 53.8333,48.568C 67.276,43.1253 80.7187,37.6827 94.1613,32.2453C 80.6613,26.428 67.1613,20.6093 53.6613,14.792 Z M 94.1613,52.2667C 88.1667,49.6827 82.172,47.1053 76.172,44.5213C 69.0147,47.4173 61.8587,50.3133 54.6973,53.2147C 52.2853,53.532 50.1507,51.8387 47.8853,51.152C 42.4,48.9227 36.916,46.688 31.432,44.4587C 25.468,47.048 19.5053,49.636 13.5413,52.224C 26.9733,57.6773 40.4,63.136 53.8333,68.5947C 67.276,63.152 80.7187,57.7093 94.1613,52.2667 Z M 76.6187,64.3653C 69.312,67.324 62.0053,70.2813 54.6973,73.2347C 52.2853,73.5573 50.1507,71.8653 47.8853,71.1773C 42.2547,68.8867 36.6187,66.5947 30.9893,64.308C 25.172,66.8333 19.3587,69.3547 13.5413,71.8813C 26.9733,77.3387 40.4,82.7973 53.8333,88.256C 67.276,82.8133 80.7187,77.3707 94.1613,71.9333C 88.3173,69.412 82.468,66.8867 76.6187,64.3653 Z " />
+        <PathGeometry Figures="M 93.4893,15.1933C 83.1453,5.07333 69.3947,-0.5 54.7653,-0.5C 40.1347,-0.5 26.3853,5.07333 16.0413,15.1933C 5.69734,25.3133 2.54313e-006,38.772 2.54313e-006,53.084C 2.54313e-006,67.396 5.69734,80.8493 16.0413,90.9693C 26.3853,101.095 40.1347,106.667 54.7653,106.667C 69.3947,106.667 83.1453,101.095 93.4893,90.9693C 103.833,80.8493 109.531,67.396 109.531,53.084C 109.531,38.772 103.833,25.3133 93.4893,15.1933 Z M 88.952,86.532C 79.8227,95.464 67.6813,100.387 54.7653,100.387C 41.8533,100.387 29.708,95.464 20.5773,86.532C 11.448,77.6 6.416,65.72 6.416,53.084C 6.416,40.448 11.448,28.568 20.5773,19.636C 29.708,10.6987 41.8533,5.78133 54.7653,5.78133C 67.6813,5.78133 79.8227,10.6987 88.952,19.636C 98.0827,28.568 103.115,40.448 103.115,53.084C 103.115,65.72 98.0827,77.6 88.952,86.532 Z " />
+        <PathGeometry Figures="M 20.864,17.912L 17.088,21.62L 88.2333,91.0627L 92.0093,87.3547" />
+    </GeometryGroup>
+
+    <!--  This data template will be displayed in N.I.N.A. on the options->plugin tab with the datacontext of the TestPlugin instance  -->
+    <!--  In order for this datatemplate to be picked correctly, the key has to follow the naming convention of <IPlugin.Name>_Options -->
+    <!--  Furthermore the Resource Dictionary has to be exported via code behind export attributes  -->
+    <DataTemplate x:Key="Livestack_Options">
+        <StackPanel Grid.IsSharedSizeScope="True" Orientation="Vertical">
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center"
+                    Text="Working Directory" />
+                <StackPanel
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    Orientation="Horizontal">
+                    <TextBox
+                        MinWidth="150"
+                        HorizontalAlignment="Stretch"
+                        VerticalAlignment="Center">
+                        <TextBox.Text>
+                            <Binding Path="WorkingDirectory" UpdateSourceTrigger="LostFocus">
+                                <Binding.ValidationRules>
+                                    <rules:DirectoryExistsRule />
+                                </Binding.ValidationRules>
+                            </Binding>
+                        </TextBox.Text>
+                    </TextBox>
+
+                    <Button
+                        Width="20"
+                        Height="20"
+                        Margin="5,0,0,0"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Center"
+                        Command="{Binding OpenWorkingFolderDiagCommand}">
+                        <Path
+                            Margin="2,10,2,0"
+                            Data="{StaticResource DotsSVG}"
+                            Fill="{StaticResource ButtonForegroundBrush}"
+                            Stretch="Uniform" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Use Bias for LIGHTs" />
+                <CheckBox
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    IsChecked="{Binding UseBiasForLights, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Hotpixel removal" />
+                <CheckBox
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    IsChecked="{Binding HotpixelRemoval, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Default stretch factor" />
+                <ninactrl:StepperControl
+                    Grid.Column="1"
+                    MinWidth="100"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    MaxValue="1"
+                    MinValue="0"
+                    StepSize="0.01"
+                    Value="{Binding DefaultStretchAmount, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Default black clipping" />
+                <ninactrl:StepperControl
+                    Grid.Column="1"
+                    MinWidth="100"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    MaxValue="0"
+                    MinValue="-10"
+                    StepSize="0.1"
+                    Value="{Binding DefaultBlackClipping, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Default green de-noise on?" />
+                <CheckBox
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    IsChecked="{Binding DefaultEnableGreenDeNoise, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Default green de-noise amount" />
+                <ninactrl:StepperControl
+                    Grid.Column="1"
+                    MinWidth="100"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    MaxValue="1"
+                    MinValue="0"
+                    StepSize="0.1"
+                    Value="{Binding DefaultGreenDeNoiseAmount, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Default downsample factor" />
+                <ninactrl:IntStepperControl
+                    Grid.Column="1"
+                    MinWidth="100"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    MaxValue="4"
+                    MinValue="1"
+                    StepSize="1"
+                    Value="{Binding DefaultDownsample, Mode=TwoWay}" />
+            </Grid>
+            <GroupBox
+                x:Name="PART_BiasLibrary"
+                Margin="0,5,0,0"
+                DataContext="{x:Static local:LivestackMediator.CalibrationVM}"
+                Header="Bias Library">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <DataGrid
+                        AutoGenerateColumns="False"
+                        CanUserAddRows="False"
+                        ItemsSource="{Binding BiasLibrary}"
+                        SelectionMode="Single"
+                        VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="4*" Header="File Location">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Path}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Width">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Width}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Height">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Height}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Gain">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Gain}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Offset">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Offset}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="30" Header="">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button
+                                            Command="{Binding DataContext.DeleteBiasMasterCommand, ElementName=PART_BiasLibrary}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource BackgroundButton}">
+                                            <Path
+                                                Height="15"
+                                                Margin="0"
+                                                Data="{StaticResource TrashCanSVG}"
+                                                Fill="{StaticResource ButtonForegroundBrush}"
+                                                Stretch="Uniform" />
+                                        </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </GroupBox>
+            <GroupBox
+                x:Name="PART_DarkLibrary"
+                Margin="0,5,0,0"
+                DataContext="{x:Static local:LivestackMediator.CalibrationVM}"
+                Header="Dark Library">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <DataGrid
+                        AutoGenerateColumns="False"
+                        CanUserAddRows="False"
+                        ItemsSource="{Binding DarkLibrary}"
+                        SelectionMode="Single"
+                        VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="2*" Header="File Location">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Path}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Exposure Time">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding ExposureTime}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Width">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Width}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Height">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Height}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Gain">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Gain}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Offset">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Offset}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="30" Header="">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button
+                                            Command="{Binding DataContext.DeleteDarkMasterCommand, ElementName=PART_DarkLibrary}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource BackgroundButton}">
+                                            <Path
+                                                Height="15"
+                                                Margin="0"
+                                                Data="{StaticResource TrashCanSVG}"
+                                                Fill="{StaticResource ButtonForegroundBrush}"
+                                                Stretch="Uniform" />
+                                        </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </GroupBox>
+            <GroupBox
+                x:Name="PART_FlatLibrary"
+                Margin="0,5,0,0"
+                DataContext="{x:Static local:LivestackMediator.CalibrationVM}"
+                Header="Multi Session Flat Library">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <DataGrid
+                        AutoGenerateColumns="False"
+                        CanUserAddRows="False"
+                        ItemsSource="{Binding FlatLibrary}"
+                        SelectionMode="Single"
+                        VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="2*" Header="File Location">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Path}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Filter">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Filter}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Width">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Width}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="*" Header="Height">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Height}" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="30" Header="">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button
+                                            Command="{Binding DataContext.DeleteFlatMasterCommand, ElementName=PART_FlatLibrary}"
+                                            CommandParameter="{Binding}"
+                                            Style="{StaticResource BackgroundButton}">
+                                            <Path
+                                                Height="15"
+                                                Margin="0"
+                                                Data="{StaticResource TrashCanSVG}"
+                                                Fill="{StaticResource ButtonForegroundBrush}"
+                                                Stretch="Uniform" />
+                                        </Button>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </GroupBox>
+            <Button Command="{Binding AddCalibrationFrameCommand}" DataContext="{x:Static local:LivestackMediator.CalibrationVM}">
+                Add Calibration Master
+            </Button>
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type prompts:CalibrationFramePrompt}">
+        <DataTemplate.Resources>
+            <ObjectDataProvider
+                x:Key="dataFromEnum"
+                MethodName="GetValues"
+                ObjectType="{x:Type s:Enum}">
+                <ObjectDataProvider.MethodParameters>
+                    <x:Type TypeName="image:CalibrationFrameType" />
+                </ObjectDataProvider.MethodParameters>
+            </ObjectDataProvider>
+        </DataTemplate.Resources>
+        <StackPanel Orientation="Vertical">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
+                </Grid.RowDefinitions>
+
+                <TextBlock>File Location</TextBlock>
+                <TextBlock
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    Text="{Binding Context.Path}" />
+
+                <TextBlock Grid.Row="1">Image Type</TextBlock>
+                <ComboBox
+                    x:Name="PART_Type"
+                    Grid.Row="1"
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    ItemsSource="{Binding Source={StaticResource dataFromEnum}}"
+                    SelectedItem="{Binding Context.Type}" />
+
+                <TextBlock Grid.Row="2">Width</TextBlock>
+                <TextBox
+                    Grid.Row="2"
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    Text="{Binding Context.Width}" />
+
+                <TextBlock Grid.Row="3">Height</TextBlock>
+                <TextBox
+                    Grid.Row="3"
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    Text="{Binding Context.Height}" />
+
+                <Grid Grid.Row="4">
+                    <TextBlock>Filter</TextBlock>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="0">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="1">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+                <Grid
+                    Grid.Row="4"
+                    Grid.Column="1"
+                    Margin="5,0,0,0">
+                    <TextBox Text="{Binding Context.Filter}" />
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="0">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="1">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+
+                <Grid Grid.Row="5">
+                    <TextBlock>Exposure Time</TextBlock>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="1">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="2">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+                <Grid
+                    Grid.Row="5"
+                    Grid.Column="1"
+                    Margin="5,0,0,0">
+                    <TextBox Text="{Binding Context.ExposureTime}" />
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="1">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="2">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+
+                <Grid Grid.Row="6">
+                    <TextBlock>Gain</TextBlock>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="2">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+                <Grid
+                    Grid.Row="6"
+                    Grid.Column="1"
+                    Margin="5,0,0,0">
+                    <TextBox Text="{Binding Context.Gain}" />
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="2">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+
+                <Grid Grid.Row="7">
+                    <TextBlock>Offset</TextBlock>
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="2">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+                <Grid
+                    Grid.Row="7"
+                    Grid.Column="1"
+                    Margin="5,0,0,0">
+                    <TextBox Text="{Binding Context.Offset}" />
+                    <Grid.Style>
+                        <Style TargetType="{x:Type Grid}">
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding ElementName=PART_Type, Path=SelectedIndex}" Value="2">
+                                    <Setter Property="Visibility" Value="Collapsed" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Grid.Style>
+                </Grid>
+
+                <Button
+                    Grid.Row="8"
+                    Height="25"
+                    Margin="5"
+                    util:ButtonHelper.DialogResult="False">
+                    <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="{ns:Loc LblCancel}" />
+                </Button>
+
+                <Button
+                    Grid.Row="8"
+                    Grid.Column="1"
+                    Height="25"
+                    Margin="5"
+                    util:ButtonHelper.DialogResult="True"
+                    Command="{Binding ContinueCommand}">
+                    <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="{ns:Loc LblOK}" />
+                </Button>
+            </Grid>
+        </StackPanel>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type prompts:QualityGatePrompt}">
+        <Grid Margin="2.5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+
+            <TextBlock VerticalAlignment="Center" Text="Quality Gate" />
+            <ComboBox
+                Grid.Column="1"
+                Margin="5,0,0,0"
+                DisplayMemberPath="Name"
+                ItemsSource="{Binding AvailableGates}"
+                SelectedItem="{Binding SelectedGate}" />
+
+            <Button
+                Grid.Row="4"
+                Height="25"
+                Margin="5"
+                util:ButtonHelper.DialogResult="False">
+                <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="{ns:Loc LblCancel}" />
+            </Button>
+
+            <Button
+                Grid.Row="4"
+                Grid.Column="1"
+                Height="25"
+                Margin="5"
+                util:ButtonHelper.DialogResult="True"
+                Command="{Binding ContinueCommand}">
+                <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="{ns:Loc LblOK}" />
+            </Button>
+        </Grid>
+    </DataTemplate>
+
+    <DataTemplate DataType="{x:Type prompts:ColorCombinationPrompt}">
+        <Grid Margin="2.5">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition />
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+                <RowDefinition />
+            </Grid.RowDefinitions>
+
+            <TextBlock VerticalAlignment="Center" Text="Target" />
+            <ComboBox
+                Grid.Column="1"
+                Margin="5,0,0,0"
+                ItemsSource="{Binding Targets}"
+                SelectedItem="{Binding Target}" />
+
+            <TextBlock
+                Grid.Row="1"
+                VerticalAlignment="Center"
+                Text="Red Channel" />
+            <ComboBox
+                Grid.Row="1"
+                Grid.Column="1"
+                Margin="5,0,0,0"
+                DisplayMemberPath="Filter"
+                ItemsSource="{Binding FilterTabs}"
+                SelectedItem="{Binding RedChannel}" />
+
+            <TextBlock
+                Grid.Row="2"
+                VerticalAlignment="Center"
+                Text="Green Channel" />
+            <ComboBox
+                Grid.Row="2"
+                Grid.Column="1"
+                Margin="5,0,0,0"
+                DisplayMemberPath="Filter"
+                ItemsSource="{Binding FilterTabs}"
+                SelectedItem="{Binding GreenChannel}" />
+
+            <TextBlock
+                Grid.Row="3"
+                VerticalAlignment="Center"
+                Text="Blue Channel" />
+            <ComboBox
+                Grid.Row="3"
+                Grid.Column="1"
+                Margin="5,0,0,0"
+                DisplayMemberPath="Filter"
+                ItemsSource="{Binding FilterTabs}"
+                SelectedItem="{Binding BlueChannel}" />
+
+            <!--<TextBlock
+                Grid.Row="4"
+                VerticalAlignment="Center"
+                Text="Color Stack Every #" />
+            <TextBox
+                Grid.Row="4"
+                Grid.Column="1"
+                Margin="5,0,0,0"
+                VerticalContentAlignment="Center"
+                Text="{Binding StackEachNrOfFrames}" />-->
+
+            <Button
+                Grid.Row="5"
+                Height="25"
+                Margin="5"
+                util:ButtonHelper.DialogResult="False">
+                <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="{ns:Loc LblCancel}" />
+            </Button>
+
+            <Button
+                Grid.Row="5"
+                Grid.Column="1"
+                Height="25"
+                Margin="5"
+                util:ButtonHelper.DialogResult="True"
+                Command="{Binding ContinueCommand}">
+                <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="{ns:Loc LblOK}" />
+            </Button>
+        </Grid>
+    </DataTemplate>
+</ResourceDictionary>
