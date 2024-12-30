@@ -217,9 +217,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                         var statistics = await e.Image.RawImageData.Statistics;
                         var starDetectionAnalysis = e.Image.RawImageData.StarDetectionAnalysis;
                         if (starDetectionAnalysis is null || starDetectionAnalysis.DetectedStars <= 0) {
-                            var render = await e.Image.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
-                            var s = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, default, default);
-                            starDetectionAnalysis = s.RawImageData.StarDetectionAnalysis;
+                            var render = e.Image.RawImageData.RenderImage();
+                            render = await render.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
+                            render = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, default, default);
+                            starDetectionAnalysis = render.RawImageData.StarDetectionAnalysis;
                         }
                         var path = await e.Image.RawImageData.SaveToDisk(
                             new NINA.Image.FileFormat.FileSaveInfo() {
@@ -343,9 +344,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 var channelStatistics = await channelData.Statistics;
                 var channelRender = channelData.RenderImage();
                 if (channelData.StarDetectionAnalysis is null || channelData.StarDetectionAnalysis.DetectedStars < 0) {
-                    var render = await channelRender.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
-                    var s = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, token, default);
-                    channelData.StarDetectionAnalysis = s.RawImageData.StarDetectionAnalysis;
+                    var render = channelRender.RawImageData.RenderImage();
+                    render = await render.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
+                    render = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, token, default);
+                    channelData.StarDetectionAnalysis = render.RawImageData.StarDetectionAnalysis;
                 }
 
                 var stars = ImageTransformer.GetStars(channelData.StarDetectionAnalysis.StarList, tab.Properties.Width, tab.Properties.Height);
