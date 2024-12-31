@@ -61,8 +61,8 @@ namespace NINA.Plugin.Livestack.Image {
             return source;
         }
 
-        public void ForcePushReference(IImageData reference, List<Accord.Point> referenceStars, ushort[] stack) {
-            Properties = reference.Properties;
+        public void ForcePushReference(ImageProperties properties, List<Accord.Point> referenceStars, ushort[] stack) {
+            Properties = properties;
             ReferenceImageStars = referenceStars;
             Stack = stack;
             ImageCount = 1;

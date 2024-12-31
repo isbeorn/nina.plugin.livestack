@@ -93,8 +93,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             bag.Add(data);
         }
 
-        public void ForcePushReference(IImageData reference, List<Accord.Point> referenceStars, ushort[] stack) {
-            bag.ForcePushReference(reference, referenceStars, stack);
+        public void ForcePushReference(ImageProperties properties, List<Accord.Point> referenceStars, ushort[] stack) {
+            bag.ForcePushReference(properties, referenceStars, stack);
         }
 
         public void SaveToDisk() {

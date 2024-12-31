@@ -310,7 +310,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             tab.SaveToDisk();
         }
 
-        private async Task StackOSC(LiveStackItem item, LiveStackTab tab, CalibrationManager calibrationManager, CancellationToken token) {
+        private async Task StackOSC(LiveStackItem item, LiveStackTab redTab, CalibrationManager calibrationManager, CancellationToken token) {
             ushort[] theImageArray;
             StatusUpdate("Calibrating frame", item);
             using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
@@ -324,7 +324,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             var meta = new ImageMetaData(); // Set bare minimum for star detection resize factor
             meta.Camera.PixelSize = profileService.ActiveProfile.CameraSettings.PixelSize;
             meta.Telescope.FocalLength = profileService.ActiveProfile.TelescopeSettings.FocalLength;
-            var theImageArrayData = imageDataFactory.CreateBaseImageData(theImageArray, tab.Properties.Width, tab.Properties.Height, 16, false, meta);
+            var theImageArrayData = imageDataFactory.CreateBaseImageData(theImageArray, item.Width, item.Height, 16, false, meta);
             var image = theImageArrayData.RenderBitmapSource();
             StatusUpdate("Debayering", item);
 
@@ -336,70 +336,73 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
             var debayeredImage = ImageUtility.Debayer(image, System.Drawing.Imaging.PixelFormat.Format16bppGrayScale, true, false, bayerPattern);
 
-            List<(ushort[], List<Accord.Point>)> transformed = new();
-            foreach (var channelArray in new List<ushort[]> { debayeredImage.Data.Red, debayeredImage.Data.Green, debayeredImage.Data.Blue }) {
-                StatusUpdate("Aligning frame", item);
-
-                var channelData = imageDataFactory.CreateBaseImageData(channelArray, tab.Properties.Width, tab.Properties.Height, 16, false, meta);
-                var channelStatistics = await channelData.Statistics;
-                var channelRender = channelData.RenderImage();
-                if (channelData.StarDetectionAnalysis is null || channelData.StarDetectionAnalysis.DetectedStars < 0) {
-                    var render = channelRender.RawImageData.RenderImage();
-                    render = await render.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
-                    render = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, token, default);
-                    channelData.StarDetectionAnalysis = render.RawImageData.StarDetectionAnalysis;
-                }
-
-                var stars = ImageTransformer.GetStars(channelData.StarDetectionAnalysis.StarList, tab.Properties.Width, tab.Properties.Height);
-
-                if (tab.ReferenceStars != null) {
-                    var affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, tab.ReferenceStars);
-                    var flipped = ImageTransformer.IsFlippedImage(affineTransformationMatrix);
-                    if (flipped) {
-                        // The reference is flipped - most likely a meridian flip happend. Rotate starlist by 180° and recompute the affine transform for a tighter fit. The apply method will then account for the indexing switch
-                        stars = ImageMath.Flip(stars, item.Width, item.Height);
-                        affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, tab.ReferenceStars);
-                    }
-                    transformed.Add((ImageTransformer.ApplyAffineTransformation(channelArray, item.Width, item.Height, affineTransformationMatrix, flipped), stars));
-                } else {
-                    tab.ForcePushReference(channelData, stars, channelData.Data.FlatArray);
-                    transformed.Add((null, null));
-                }
+            StatusUpdate("Aligning frame - red channel", item);
+            var redChannelData = imageDataFactory.CreateBaseImageData(debayeredImage.Data.Red, item.Width, item.Height, redTab.Properties.BitDepth, false, meta);
+            // We only need to detect the stars in one channel for OSC. The others should match.
+            var channelStatistics = await redChannelData.Statistics;
+            var channelRender = redChannelData.RenderImage();
+            if (redChannelData.StarDetectionAnalysis is null || redChannelData.StarDetectionAnalysis.DetectedStars < 0) {
+                var render = channelRender.RawImageData.RenderImage();
+                render = await render.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
+                render = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, token, default);
+                redChannelData.StarDetectionAnalysis = render.RawImageData.StarDetectionAnalysis;
             }
 
-            if (transformed[0].Item1 != null) {
-                tab.AddImage(transformed[0].Item1);
-            }
-            await tab.Refresh(token);
+            var stars = ImageTransformer.GetStars(redChannelData.StarDetectionAnalysis.StarList, item.Width, item.Height);
 
-            var greenTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == "G_OSC" && x.Target == tab.Target) as LiveStackTab;
+            double[,] affineTransformationMatrix = null;
+            bool flipped = false;
+            // Reference Stars are null when no image is registered so far
+            if (redTab.ReferenceStars == null) {
+                redTab.ForcePushReference(new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars, redChannelData.Data.FlatArray);
+            } else {
+                // We only need to compute the transformation in one channel. The others should match.
+                affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, redTab.ReferenceStars);
+                flipped = ImageTransformer.IsFlippedImage(affineTransformationMatrix);
+                if (flipped) {
+                    // The reference is flipped - most likely a meridian flip happend. Rotate starlist by 180° and recompute the affine transform for a tighter fit. The apply method will then account for the indexing switch
+                    stars = ImageMath.Flip(stars, item.Width, item.Height);
+                    affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, redTab.ReferenceStars);
+                }
+                var redAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Red, item.Width, item.Height, affineTransformationMatrix, flipped);
+                redTab.AddImage(redAligned);
+            }
+
+            StatusUpdate("Aligning frame - green channel", item);
+            var greenTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == "G_OSC" && x.Target == item.Target) as LiveStackTab;
             if (greenTab == null) {
-                var bag = new LiveStackBag(tab.Target, "G_OSC", new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), transformed[1].Item2);
-                bag.Add(transformed[1].Item1);
+                var bag = new LiveStackBag(item.Target, "G_OSC", new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
+                bag.Add(debayeredImage.Data.Green);
                 greenTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(greenTab);
             } else {
-                greenTab.AddImage(transformed[1].Item1);
+                var greenAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Green, item.Width, item.Height, affineTransformationMatrix, flipped);
+                greenTab.AddImage(greenAligned);
             }
-            await greenTab.Refresh(token);
-            var blueTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == "B_OSC" && x.Target == tab.Target) as LiveStackTab;
+
+            StatusUpdate("Aligning frame - blue channel", item);
+            var blueTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == "B_OSC" && x.Target == item.Target) as LiveStackTab;
             if (blueTab == null) {
-                var bag = new LiveStackBag(tab.Target, "B_OSC", new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), transformed[2].Item2);
-                bag.Add(transformed[2].Item1);
+                var bag = new LiveStackBag(item.Target, "B_OSC", new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
+                bag.Add(debayeredImage.Data.Blue);
                 blueTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(blueTab);
             } else {
-                blueTab.AddImage(transformed[2].Item1);
+                var blueAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Blue, item.Width, item.Height, affineTransformationMatrix, flipped);
+                blueTab.AddImage(blueAligned);
             }
+
+            await redTab.Refresh(token);
+            await greenTab.Refresh(token);
             await blueTab.Refresh(token);
 
-            var colorTab = Tabs.Where(x => x is ColorCombinationTab && x.Target == tab.Target).FirstOrDefault() as ColorCombinationTab;
+            var colorTab = Tabs.Where(x => x is ColorCombinationTab && x.Target == item.Target).FirstOrDefault() as ColorCombinationTab;
             if (colorTab == null) {
-                colorTab = new ColorCombinationTab(profileService, tab, greenTab, blueTab);
+                colorTab = new ColorCombinationTab(profileService, redTab, greenTab, blueTab);
                 Tabs.Add(colorTab);
             }
 
-            tab.SaveToDisk();
+            redTab.SaveToDisk();
             greenTab.SaveToDisk();
             blueTab.SaveToDisk();
         }
