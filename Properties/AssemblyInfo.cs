@@ -8,8 +8,8 @@ using System.Windows.Markup;
 
 // [MANDATORY] The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.0.0.1")]
-[assembly: AssemblyFileVersion("1.0.0.1")]
+[assembly: AssemblyVersion("1.0.0.2")]
+[assembly: AssemblyFileVersion("1.0.0.2")]
 
 // [MANDATORY] The name of your plugin
 [assembly: AssemblyTitle("Livestack")]
