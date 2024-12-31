@@ -17,6 +17,9 @@ namespace NINA.Plugin.Livestack.Image {
     public partial class LiveStackBag {
         public static readonly string NOTARGET = "No_target";
         public static readonly string NOFILTER = "No_filter";
+        public static readonly string RED_OSC = "R_OSC";
+        public static readonly string GREEN_OSC = "G_OSC";
+        public static readonly string BLUE_OSC = "B_OSC";
 
         public LiveStackBag(string target, string filter, ImageProperties properties, List<Accord.Point> referenceStars) {
             Filter = filter;

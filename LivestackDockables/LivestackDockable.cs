@@ -162,9 +162,21 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         [RelayCommand]
         private async Task RemoveTab(IStackTab tab) {
             while (tab.Locked) {
-                await Task.Delay(100);
+                await Task.Delay(10);
             }
-            Tabs.Remove(tab);
+
+            var colorTab = Tabs.Where(x => x is ColorCombinationTab && x.Target == tab.Target).FirstOrDefault() as ColorCombinationTab;
+            if (tab.Filter == LiveStackBag.RED_OSC || tab.Filter == LiveStackBag.GREEN_OSC || tab.Filter == LiveStackBag.BLUE_OSC) {
+                var red = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.RED_OSC && x.Target == tab.Target);
+                var green = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.GREEN_OSC && x.Target == tab.Target);
+                var blue = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.BLUE_OSC && x.Target == tab.Target);
+                Tabs.Remove(red);
+                Tabs.Remove(green);
+                Tabs.Remove(blue);
+            } else {
+                Tabs.Remove(tab);
+            }
+
             GC.Collect();
             GC.WaitForPendingFinalizers();
         }
@@ -264,7 +276,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private async Task<(LiveStackTab, bool created)> GetOrCreateStackBag(LiveStackItem item, CancellationToken token) {
             var target = string.IsNullOrWhiteSpace(item.Target) ? LiveStackBag.NOTARGET : item.Target;
             var filter = string.IsNullOrWhiteSpace(item.Filter) ? LiveStackBag.NOFILTER : item.Filter;
-            if (item.IsBayered) { filter = "R_OSC"; }
+            if (item.IsBayered) { filter = LiveStackBag.RED_OSC; }
 
             var tab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == filter && x.Target == target);
             if (tab == null) {
@@ -369,9 +381,9 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
 
             StatusUpdate("Aligning frame - green channel", item);
-            var greenTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == "G_OSC" && x.Target == item.Target) as LiveStackTab;
+            var greenTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.GREEN_OSC && x.Target == item.Target) as LiveStackTab;
             if (greenTab == null) {
-                var bag = new LiveStackBag(item.Target, "G_OSC", new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
+                var bag = new LiveStackBag(item.Target, LiveStackBag.GREEN_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
                 bag.Add(debayeredImage.Data.Green);
                 greenTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(greenTab);
@@ -381,9 +393,9 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
 
             StatusUpdate("Aligning frame - blue channel", item);
-            var blueTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == "B_OSC" && x.Target == item.Target) as LiveStackTab;
+            var blueTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.BLUE_OSC && x.Target == item.Target) as LiveStackTab;
             if (blueTab == null) {
-                var bag = new LiveStackBag(item.Target, "B_OSC", new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
+                var bag = new LiveStackBag(item.Target, LiveStackBag.BLUE_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
                 bag.Add(debayeredImage.Data.Blue);
                 blueTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(blueTab);
