@@ -119,20 +119,24 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                         var greenData = AlignTab(red, green);
                         var blueData = AlignTab(red, blue);
 
-                        using var redBitmap = ImageMath.CreateGrayBitmap(red.Stack, red.Properties.Width, red.Properties.Height);
-                        var (redMedian, redMAD) = ImageMath.CalculateMedianAndMAD(red.Stack);
+                        var redUshortArray = red.Stack.ToUShortArray();
+                        var greenUshortArray = greenData.ToUShortArray();
+                        var blueUshortArray = blueData.ToUShortArray();
+
+                        using var redBitmap = ImageMath.CreateGrayBitmap(redUshortArray, red.Properties.Width, red.Properties.Height);
+                        var (redMedian, redMAD) = ImageMath.CalculateMedianAndMAD(redUshortArray);
                         var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(redMedian, redMAD, red.Properties.BitDepth), RedStretchFactor, RedBlackClipping, PixelFormats.Gray16);
                         filter.ApplyInPlace(redBitmap);
                         token.ThrowIfCancellationRequested();
 
-                        using var blueBitmap = ImageMath.CreateGrayBitmap(blueData, blue.Properties.Width, blue.Properties.Height);
-                        var (blueMedian, blueMAD) = ImageMath.CalculateMedianAndMAD(blueData);
+                        using var blueBitmap = ImageMath.CreateGrayBitmap(blueUshortArray, blue.Properties.Width, blue.Properties.Height);
+                        var (blueMedian, blueMAD) = ImageMath.CalculateMedianAndMAD(blueUshortArray);
                         var filterBlue = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(blueMedian, blueMAD, blue.Properties.BitDepth), BlueStretchFactor, BlueBlackClipping, PixelFormats.Gray16);
                         filterBlue.ApplyInPlace(blueBitmap);
                         token.ThrowIfCancellationRequested();
 
-                        using var greenBitmap = ImageMath.CreateGrayBitmap(greenData, green.Properties.Width, green.Properties.Height);
-                        var (greenMedian, greenMAD) = ImageMath.CalculateMedianAndMAD(greenData);
+                        using var greenBitmap = ImageMath.CreateGrayBitmap(greenUshortArray, green.Properties.Width, green.Properties.Height);
+                        var (greenMedian, greenMAD) = ImageMath.CalculateMedianAndMAD(greenUshortArray);
                         var filterGreen = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(greenMedian, greenMAD, green.Properties.BitDepth), GreenStretchFactor, GreenBlackClipping, PixelFormats.Gray16);
                         filterGreen.ApplyInPlace(greenBitmap);
                         token.ThrowIfCancellationRequested();
@@ -177,7 +181,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             ImageFlipValue *= -1;
         }
 
-        private ushort[] AlignTab(LiveStackTab reference, LiveStackTab target) {
+        private float[] AlignTab(LiveStackTab reference, LiveStackTab target) {
             var stars = target.ReferenceStars;
             var affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, reference.ReferenceStars);
             var flipped = ImageTransformer.IsFlippedImage(affineTransformationMatrix);

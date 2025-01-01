@@ -266,6 +266,10 @@ namespace NINA.Plugin.Livestack {
             return fits_read_key_double(filePtr, keyname);
         }
 
+        public float ReadFloatHeader(string keyname) {
+            return fits_read_key_float(filePtr, keyname);
+        }
+
         private const int FLEN_KEYWORD = 75;
         private const int FLEN_COMMENT = 73;
 

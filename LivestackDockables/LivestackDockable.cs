@@ -290,7 +290,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             return tab as LiveStackTab;
         }
 
-        private async Task StackMono(ushort[] theImageArray, LiveStackItem item, LiveStackTab tab, CancellationToken token) {
+        private async Task StackMono(float[] theImageArray, LiveStackItem item, LiveStackTab tab, CancellationToken token) {
             if (tab.Stack == null) {
                 tab.AddImage(theImageArray);
             } else {
@@ -315,11 +315,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             tab.SaveToDisk();
         }
 
-        private async Task StackOSC(ushort[] theImageArray, LiveStackItem item, LiveStackTab redTab, CancellationToken token) {
+        private async Task StackOSC(float[] theImageArray, LiveStackItem item, LiveStackTab redTab, CancellationToken token) {
             var meta = new ImageMetaData(); // Set bare minimum for star detection resize factor
             meta.Camera.PixelSize = profileService.ActiveProfile.CameraSettings.PixelSize;
             meta.Telescope.FocalLength = profileService.ActiveProfile.TelescopeSettings.FocalLength;
-            var theImageArrayData = imageDataFactory.CreateBaseImageData(theImageArray, item.Width, item.Height, 16, false, meta);
+            var theImageArrayData = imageDataFactory.CreateBaseImageData(theImageArray.ToUShortArray(), item.Width, item.Height, 16, false, meta);
             var image = theImageArrayData.RenderBitmapSource();
             StatusUpdate("Debayering", item);
 
@@ -349,7 +349,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             bool flipped = false;
             // Reference Stars are null when no image is registered so far
             if (redTab.ReferenceStars == null) {
-                redTab.ForcePushReference(new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars, redChannelData.Data.FlatArray);
+                redTab.ForcePushReference(new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars, redChannelData.Data.FlatArray.ToFloatArray());
             } else {
                 // We only need to compute the transformation in one channel. The others should match.
                 affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, redTab.ReferenceStars);
@@ -359,7 +359,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                     stars = ImageMath.Flip(stars, item.Width, item.Height);
                     affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, redTab.ReferenceStars);
                 }
-                var redAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Red, item.Width, item.Height, affineTransformationMatrix, flipped);
+                var redAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Red.ToFloatArray(), item.Width, item.Height, affineTransformationMatrix, flipped);
                 redTab.AddImage(redAligned);
             }
 
@@ -367,11 +367,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             var greenTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.GREEN_OSC && x.Target == item.Target) as LiveStackTab;
             if (greenTab == null) {
                 var bag = new LiveStackBag(item.Target, LiveStackBag.GREEN_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
-                bag.Add(debayeredImage.Data.Green);
+                bag.Add(debayeredImage.Data.Green.ToFloatArray());
                 greenTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(greenTab);
             } else {
-                var greenAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Green, item.Width, item.Height, affineTransformationMatrix, flipped);
+                var greenAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Green.ToFloatArray(), item.Width, item.Height, affineTransformationMatrix, flipped);
                 greenTab.AddImage(greenAligned);
             }
 
@@ -379,11 +379,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             var blueTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.BLUE_OSC && x.Target == item.Target) as LiveStackTab;
             if (blueTab == null) {
                 var bag = new LiveStackBag(item.Target, LiveStackBag.BLUE_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
-                bag.Add(debayeredImage.Data.Blue);
+                bag.Add(debayeredImage.Data.Blue.ToFloatArray());
                 blueTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(blueTab);
             } else {
-                var blueAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Blue, item.Width, item.Height, affineTransformationMatrix, flipped);
+                var blueAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Blue.ToFloatArray(), item.Width, item.Height, affineTransformationMatrix, flipped);
                 blueTab.AddImage(blueAligned);
             }
 
@@ -432,8 +432,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
         }
 
-        private ushort[] CalibrateFrame(LiveStackItem item, CalibrationManager calibrationManager) {
-            ushort[] theImageArray;
+        private float[] CalibrateFrame(LiveStackItem item, CalibrationManager calibrationManager) {
+            float[] theImageArray;
             StatusUpdate("Calibrating frame", item);
             using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
                 theImageArray = calibrationManager.ApplyLightFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered);
@@ -441,7 +441,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             return theImageArray;
         }
 
-        private void RemoveHotpixelsIfNeeded(ushort[] theImageArray, LiveStackItem item) {
+        private void RemoveHotpixelsIfNeeded(float[] theImageArray, LiveStackItem item) {
             if (LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.HotpixelRemoval), true)) {
                 StatusUpdate("Removing hot pixels in frame", item);
                 ImageMath.RemoveHotPixelOutliers(theImageArray, item.Width, item.Height);

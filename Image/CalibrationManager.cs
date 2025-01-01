@@ -9,7 +9,6 @@ using System.Collections.Generic;
 using NINA.Image.ImageData;
 using System.Linq;
 using NINA.Profile;
-using Accord.Statistics;
 using System;
 
 namespace NINA.Plugin.Livestack.Image {
@@ -125,7 +124,7 @@ namespace NINA.Plugin.Livestack.Image {
             return master;
         }
 
-        public ushort[] ApplyLightFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
+        public float[] ApplyLightFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
             CalibrationMaster bias = null;
             if (LivestackMediator.Plugin.UseBiasForLights) {
                 bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
@@ -133,8 +132,8 @@ namespace NINA.Plugin.Livestack.Image {
             var dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
             var flat = GetFlatMaster(width, height, inFilter, isBayered);
 
-            ushort[] imageArray = new ushort[width * height];
-            double flatCorrected = 1d;
+            float[] imageArray = new float[width * height];
+            float flatCorrected = 1f;
             float[] biasRow = Array.Empty<float>();
             float[] darkRow = Array.Empty<float>();
             float[] flatRow = Array.Empty<float>();
@@ -149,12 +148,12 @@ namespace NINA.Plugin.Livestack.Image {
                     flatRow = flat.ReadPixelRow(idxRow);
                 }
 
-                var lightRow = image.ReadPixelRowAsUShort(idxRow);
+                var lightRow = image.ReadPixelRowAsFloat(idxRow);
 
                 for (int idxCol = 0; idxCol < width; idxCol++) {
                     var pixelIndex = idxRow * width + idxCol;
 
-                    float lightCorrected = lightRow[idxCol] / (float)ushort.MaxValue;
+                    float lightCorrected = lightRow[idxCol];
                     if (bias != null) {
                         lightCorrected = lightCorrected - biasRow[idxCol];
                     }
@@ -162,30 +161,29 @@ namespace NINA.Plugin.Livestack.Image {
                         lightCorrected = lightCorrected - darkRow[idxCol];
                     }
 
-                    if (lightCorrected < 0) { lightCorrected = 0; }
-                    if (lightCorrected > ushort.MaxValue) { lightCorrected = ushort.MaxValue; }
+                    if (lightCorrected < 0f) { lightCorrected = 0; }
+                    if (lightCorrected > 1f) { lightCorrected = 1f; }
 
                     if (flat != null) {
                         flatCorrected = flatRow[idxCol] / flat.Meta.Mean;
                     }
 
-                    imageArray[pixelIndex] = (ushort)((lightCorrected / flatCorrected) * ushort.MaxValue);
+                    imageArray[pixelIndex] = (lightCorrected / flatCorrected);
                 }
             }
             return imageArray;
         }
 
-        public ushort[] ApplyFlatFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
+        public float[] ApplyFlatFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
             var bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
             CalibrationMaster dark = null;
             if (bias == null) {
                 dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
             }
 
-            ushort[] imageArray = new ushort[width * height];
+            float[] imageArray = new float[width * height];
             float[] biasRow = Array.Empty<float>();
             float[] darkRow = Array.Empty<float>();
-            float[] flatRow = Array.Empty<float>();
             for (int idxRow = 0; idxRow < height; idxRow++) {
                 if (bias != null) {
                     biasRow = bias.ReadPixelRow(idxRow);
@@ -193,22 +191,22 @@ namespace NINA.Plugin.Livestack.Image {
                 if (dark != null) {
                     darkRow = dark.ReadPixelRow(idxRow);
                 }
-                var lightRow = image.ReadPixelRowAsUShort(idxRow);
+                var flatRow = image.ReadPixelRowAsFloat(idxRow);
 
                 for (int idxCol = 0; idxCol < width; idxCol++) {
                     var pixelIndex = idxRow * width + idxCol;
-                    float lightCorrected = lightRow[idxCol] / (float)ushort.MaxValue;
+                    float flatCorrected = flatRow[idxCol];
                     if (bias != null) {
-                        lightCorrected = lightCorrected - biasRow[idxCol];
+                        flatCorrected = flatCorrected - biasRow[idxCol];
                     }
                     if (dark != null) {
-                        lightCorrected = lightCorrected - darkRow[idxCol];
+                        flatCorrected = flatCorrected - darkRow[idxCol];
                     }
 
-                    if (lightCorrected < 0) { lightCorrected = 0; }
-                    if (lightCorrected > ushort.MaxValue) { lightCorrected = ushort.MaxValue; }
+                    if (flatCorrected < 0f) { flatCorrected = 0f; }
+                    if (flatCorrected > 1f) { flatCorrected = 1f; }
 
-                    imageArray[pixelIndex] = (ushort)(lightCorrected * ushort.MaxValue);
+                    imageArray[pixelIndex] = flatCorrected;
                 }
             }
             return imageArray;

@@ -13,7 +13,7 @@ using NINA.Plugin.Livestack.LivestackDockables;
 using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using NINA.WPF.Base.ViewModel;
-using Accord.Statistics;
+using MathNet.Numerics.Statistics;
 
 namespace NINA.Plugin.Livestack {
 
@@ -133,7 +133,7 @@ namespace NINA.Plugin.Livestack {
                 int offset = -1;
                 string filter = "";
                 double exposureTime = 0;
-                double mean = double.NaN;
+                float mean = float.NaN;
                 string imageType = "";
 
                 var extension = Path.GetExtension(dialog.FileName).ToLower();
@@ -149,7 +149,7 @@ namespace NINA.Plugin.Livestack {
                         width = fits.Width;
                         height = fits.Height;
 
-                        mean = fits.ReadAllPixelsAsFloat().Mean();
+                        mean = (float)fits.ReadAllPixelsAsFloat().Mean();
                     }
                 } else {
                     Notification.ShowError("Unsupported file format");
@@ -198,7 +198,7 @@ namespace NINA.Plugin.Livestack {
                 int offset = -1;
                 string filter = "";
                 double exposureTime = 0;
-                double mean = double.NaN;
+                float mean = float.NaN;
                 string imageType = "";
 
                 var extension = Path.GetExtension(dialog.FileName).ToLower();
@@ -214,7 +214,7 @@ namespace NINA.Plugin.Livestack {
                         width = fits.Width;
                         height = fits.Height;
 
-                        mean = fits.ReadAllPixelsAsFloat().Mean();
+                        mean = (float)fits.ReadAllPixelsAsFloat().Mean();
                     }
                 } else {
                     Notification.ShowError("Unsupported file format");
