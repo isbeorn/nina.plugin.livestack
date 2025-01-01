@@ -78,24 +78,26 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                     StackImage = Render(StretchFactor, BlackClipping, Downsample);
                     StackCount = bag.ImageCount;
                 }, token);
-            } catch { }
+            } catch {
+            } finally {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
         }
 
         private BitmapSource Render(double stretchFactor, double blackClipping, int downsample) {
             var ushortStack = Stack.ToUShortArray();
             using var bmp = ImageMath.CreateGrayBitmap(ushortStack, Properties.Width, Properties.Height);
-            var (median, medianAbsoluteDeviation) = ImageMath.CalculateMedianAndMAD(ushortStack);
-            var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(median, medianAbsoluteDeviation, Properties.BitDepth), stretchFactor, blackClipping, PixelFormats.Gray16);
-            filter.ApplyInPlace(bmp);
+            var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(bmp.Median, bmp.MedianAbsoluteDeviation, Properties.BitDepth), stretchFactor, blackClipping, PixelFormats.Gray16);
+            filter.ApplyInPlace(bmp.Bitmap);
 
             BitmapSource source;
             if (downsample > 1) {
-                using var downsampledBmp = ImageMath.DownsampleGray16(bmp, downsample);
+                using var downsampledBmp = ImageMath.DownsampleGray16(bmp.Bitmap, downsample);
                 source = ImageUtility.ConvertBitmap(downsampledBmp);
             } else {
-                source = ImageUtility.ConvertBitmap(bmp);
+                source = ImageUtility.ConvertBitmap(bmp.Bitmap);
             }
-
             source.Freeze();
             return source;
         }

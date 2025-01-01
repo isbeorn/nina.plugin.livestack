@@ -33,7 +33,9 @@ namespace NINA.Plugin.Livestack.Image {
 
         public List<Accord.Point> ReferenceImageStars { get; private set; }
         public float[] Stack { get; private set; }
+
         public string Filter { get; }
+
         public string Target { get; }
         public int ImageCount { get; private set; }
 

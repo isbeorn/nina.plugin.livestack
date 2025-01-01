@@ -291,8 +291,9 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private async Task StackMono(float[] theImageArray, LiveStackItem item, LiveStackTab tab, CancellationToken token) {
-            if (tab.Stack == null) {
-                tab.AddImage(theImageArray);
+            float[] transformedImage;
+            if (tab.StackCount == 0) {
+                transformedImage = theImageArray;
             } else {
                 StatusUpdate("Aligning frame", item);
                 var stars = ImageTransformer.GetStars(item.StarList, item.Width, item.Height);
@@ -303,16 +304,15 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                     stars = ImageMath.Flip(stars, item.Width, item.Height);
                     affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, tab.ReferenceStars);
                 }
-                var transformedImage = ImageTransformer.ApplyAffineTransformation(theImageArray, item.Width, item.Height, affineTransformationMatrix, flipped);
+                transformedImage = ImageTransformer.ApplyAffineTransformation(theImageArray, item.Width, item.Height, affineTransformationMatrix, flipped);
 
                 StatusUpdate("Updating stack", item);
-                tab.AddImage(transformedImage);
             }
+
+            tab.AddImage(transformedImage);
 
             StatusUpdate("Rendering stack", item);
             await tab.Refresh(token);
-
-            tab.SaveToDisk();
         }
 
         private async Task StackOSC(float[] theImageArray, LiveStackItem item, LiveStackTab redTab, CancellationToken token) {
@@ -396,10 +396,6 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 colorTab = new ColorCombinationTab(profileService, redTab, greenTab, blueTab);
                 Tabs.Add(colorTab);
             }
-
-            redTab.SaveToDisk();
-            greenTab.SaveToDisk();
-            blueTab.SaveToDisk();
         }
 
         private async Task StackItem(LiveStackItem item, CancellationToken token) {

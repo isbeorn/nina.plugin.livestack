@@ -246,7 +246,7 @@ namespace NINA.Plugin.Livestack.Image {
             return rgb48Bitmap;
         }
 
-        public static Bitmap CreateGrayBitmap(ushort[] data, int width, int height) {
+        public static BitmapWithMedian CreateGrayBitmap(ushort[] data, int width, int height) {
             if (data.Length != width * height)
                 throw new ArgumentException("Data length does not match width and height dimensions.");
 
@@ -260,12 +260,15 @@ namespace NINA.Plugin.Livestack.Image {
             int bytesPerPixel = 2; // 16 bits per pixel (2 bytes per pixel)
             int stride = bitmapData.Stride / bytesPerPixel; // Adjust for row alignment
 
+            int[] pixelValueCounts = new int[ushort.MaxValue + 1];
             // Copy the data row by row to handle potential stride padding
             unsafe {
                 ushort* ptr = (ushort*)bitmapData.Scan0;
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++) {
-                        ptr[y * stride + x] = data[y * width + x];
+                        var pixel = data[y * width + x];
+                        pixelValueCounts[pixel]++;
+                        ptr[y * stride + x] = pixel;
                     }
                 }
             }
@@ -273,17 +276,32 @@ namespace NINA.Plugin.Livestack.Image {
             // Unlock the bitmap
             grayBitmap.UnlockBits(bitmapData);
 
-            return grayBitmap;
+            var (median, mad) = CalculateMedianAndMAD(pixelValueCounts, width * height);
+
+            return new(grayBitmap, median, mad);
         }
 
-        public static (double Median, double MAD) CalculateMedianAndMAD(ushort[] data) {
-            int[] pixelValueCounts = new int[ushort.MaxValue + 1];
-            foreach (var pixel in data) {
-                pixelValueCounts[pixel]++;
+        public class BitmapWithMedian : IDisposable {
+
+            public BitmapWithMedian(Bitmap bitmap, double median, double medianAbsoluteDeviation) {
+                Bitmap = bitmap;
+                Median = median;
+                MedianAbsoluteDeviation = medianAbsoluteDeviation;
             }
+
+            public Bitmap Bitmap { get; }
+            public double Median { get; }
+            public double MedianAbsoluteDeviation { get; }
+
+            public void Dispose() {
+                Bitmap.Dispose();
+            }
+        }
+
+        public static (double Median, double MAD) CalculateMedianAndMAD(int[] pixelValueCounts, int originalDataLength) {
             int median1 = 0, median2 = 0;
             var occurrences = 0;
-            var medianlength = data.Length / 2.0;
+            var medianlength = originalDataLength / 2.0;
             for (ushort i = 0; i < ushort.MaxValue; i++) {
                 occurrences += pixelValueCounts[i];
                 if (occurrences > medianlength) {

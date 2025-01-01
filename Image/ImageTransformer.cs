@@ -120,6 +120,38 @@ namespace NINA.Plugin.Livestack.Image {
             return transformedImageData;
         }
 
+        public static ushort[] ApplyAffineTransformationAsUshort(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
+            // Create a new output array to hold the transformed image
+            ushort[] transformedImageData = new ushort[width * height];
+
+            // Loop through all pixels in the source image
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    // Apply the affine transformation to each pixel's coordinates
+                    var transformedCoords = ApplyAffineMatrix(x, y, affineMatrix);
+
+                    // Map transformed coordinates back to the new image
+                    int newX = (int)transformedCoords.X;
+                    int newY = (int)transformedCoords.Y;
+                    if (flippedImage) {
+                        newX = width - 1 - newX;
+                        newY = height - 1 - newY;
+                    }
+
+                    // Ensure we stay within the image bounds
+                    if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+                        // Get the interpolated pixel value from the source image data at the transformed coordinates
+                        float newPixelValue = GetInterpolatedPixelValue(newX, newY, sourceImageData, width, height);
+
+                        // Set the pixel in the transformed image data
+                        transformedImageData[y * width + x] = (ushort)Math.Clamp(newPixelValue * ushort.MaxValue, 0, ushort.MaxValue);
+                    }
+                }
+            }
+
+            return transformedImageData;
+        }
+
         public static bool IsFlippedImage(double[,] affineMatrix) {
             // Extract the top-left 2x2 part of the affine transformation matrix
             double a = affineMatrix[0, 0];
