@@ -1,5 +1,8 @@
 ﻿# Livestack
 
+## 1.0.0.5
+- Small bugfix to properly dispose file access to calibration files
+
 ## 1.0.0.4
 - Light frames are now calibrated as 32-bit floating point images
 - New options:

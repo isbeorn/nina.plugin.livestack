@@ -417,13 +417,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             var tab = GetOrCreateStackBag(item);
             tab.Locked = true;
             try {
-                using var calibrationManager = new CalibrationManager();
-                RegisterCalibrationMasters(calibrationManager);
                 if (SelectedTab == null) {
                     SelectedTab = tab;
                 }
 
-                var calibratedFrame = CalibrateFrame(item, calibrationManager);
+                var calibratedFrame = CalibrateFrame(item);
 
                 SaveCalibratedFrameIfNeeded(calibratedFrame, item);
 
@@ -450,9 +448,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
         }
 
-        private float[] CalibrateFrame(LiveStackItem item, CalibrationManager calibrationManager) {
-            float[] theImageArray;
+        private float[] CalibrateFrame(LiveStackItem item) {
             StatusUpdate("Calibrating frame", item);
+            using var calibrationManager = new CalibrationManager();
+            RegisterCalibrationMasters(calibrationManager);
+            float[] theImageArray;
             using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
                 theImageArray = calibrationManager.ApplyLightFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered);
             }

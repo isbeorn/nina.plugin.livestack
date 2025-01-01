@@ -217,11 +217,11 @@ namespace NINA.Plugin.Livestack.Image {
                 try {
                     item.Value.Dispose();
                 } catch { }
-                masterCache.Clear();
-                BiasLibrary.Clear();
-                DarkLibrary.Clear();
-                FlatLibrary.Clear();
             }
+            masterCache.Clear();
+            BiasLibrary.Clear();
+            DarkLibrary.Clear();
+            FlatLibrary.Clear();
         }
     }
 }
