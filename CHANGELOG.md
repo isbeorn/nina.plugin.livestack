@@ -1,5 +1,8 @@
 ﻿# Livestack
 
+## 1.0.0.3
+- Calibration masters that are not saved in 32-bit floating point format are now read correctly
+
 ## 1.0.0.2
 - One shot color stacking improvements
     - The stacker will no longer detect stars on all three channels but will use the red channel for reference stars.

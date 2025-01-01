@@ -29,7 +29,7 @@ namespace NINA.Plugin.Livestack.Image {
 
         public float[] ReadPixelRow(int row) {
             if (dataCache[row] == null) {
-                dataCache[row] = imageReader.ReadPixelRow<float>(row);
+                dataCache[row] = imageReader.ReadPixelRowAsFloat(row);
             }
             return dataCache[row];
         }
@@ -149,7 +149,7 @@ namespace NINA.Plugin.Livestack.Image {
                     flatRow = flat.ReadPixelRow(idxRow);
                 }
 
-                var lightRow = image.ReadPixelRow<ushort>(idxRow);
+                var lightRow = image.ReadPixelRowAsUShort(idxRow);
 
                 for (int idxCol = 0; idxCol < width; idxCol++) {
                     var pixelIndex = idxRow * width + idxCol;
@@ -193,7 +193,7 @@ namespace NINA.Plugin.Livestack.Image {
                 if (dark != null) {
                     darkRow = dark.ReadPixelRow(idxRow);
                 }
-                var lightRow = image.ReadPixelRow<ushort>(idxRow);
+                var lightRow = image.ReadPixelRowAsUShort(idxRow);
 
                 for (int idxCol = 0; idxCol < width; idxCol++) {
                     var pixelIndex = idxRow * width + idxCol;

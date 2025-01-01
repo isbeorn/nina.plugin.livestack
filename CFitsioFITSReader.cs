@@ -70,7 +70,7 @@ namespace NINA.Plugin.Livestack {
         public int Height { get; }
         public BITPIX BitPix { get; }
 
-        public T[] ReadPixelRow<T>(int row) {
+        private T[] ReadPixelRow<T>(int row) {
             const int nelem = 2;
             var firstpix = new int[nelem] { 1, row + 1 };
 
@@ -89,7 +89,7 @@ namespace NINA.Plugin.Livestack {
             }
         }
 
-        public T[] ReadAllPixels<T>() {
+        private T[] ReadAllPixels<T>() {
             const int nelem = 2;
             var firstpix = new int[nelem] { 1, 1 };
 
@@ -105,6 +105,54 @@ namespace NINA.Plugin.Livestack {
                     CheckStatus("fits_read_pix", status);
                 }
                 return resultBuffer;
+            }
+        }
+
+        public float[] ReadPixelRowAsFloat(int row) {
+            if (BitPix == BITPIX.BYTE_IMG) {
+                var pixels = ReadPixelRow<byte>(row);
+                return ToFloatArray(pixels);
+            } else if (BitPix == BITPIX.DOUBLE_IMG) {
+                var pixels = ReadPixelRow<double>(row);
+                return ToFloatArray(pixels);
+            } else if (BitPix == BITPIX.FLOAT_IMG) {
+                var pixels = ReadPixelRow<float>(row);
+                return pixels;
+            } else if (BitPix == BITPIX.LONGLONG_IMG) {
+                var pixels = ReadPixelRow<long>(row);
+                return ToFloatArray(pixels);
+            } else if (BitPix == BITPIX.LONG_IMG) {
+                var pixels = ReadPixelRow<int>(row);
+                return ToFloatArray(pixels);
+            } else if (BitPix == BITPIX.SHORT_IMG) {
+                var pixels = ReadPixelRow<ushort>(row);
+                return ToFloatArray(pixels);
+            } else {
+                throw new ArgumentException($"Invalid BITPIX {BitPix}");
+            }
+        }
+
+        public ushort[] ReadPixelRowAsUShort(int row) {
+            if (BitPix == BITPIX.BYTE_IMG) {
+                var pixels = ReadPixelRow<byte>(row);
+                return ToUshortArray(pixels);
+            } else if (BitPix == BITPIX.DOUBLE_IMG) {
+                var pixels = ReadPixelRow<double>(row);
+                return ToUshortArray(pixels);
+            } else if (BitPix == BITPIX.FLOAT_IMG) {
+                var pixels = ReadPixelRow<float>(row);
+                return ToUshortArray(pixels);
+            } else if (BitPix == BITPIX.LONGLONG_IMG) {
+                var pixels = ReadPixelRow<long>(row);
+                return ToUshortArray(pixels);
+            } else if (BitPix == BITPIX.LONG_IMG) {
+                var pixels = ReadPixelRow<int>(row);
+                return ToUshortArray(pixels);
+            } else if (BitPix == BITPIX.SHORT_IMG) {
+                var pixels = ReadPixelRow<ushort>(row);
+                return pixels;
+            } else {
+                throw new ArgumentException($"Invalid BITPIX {BitPix}");
             }
         }
 
@@ -170,6 +218,46 @@ namespace NINA.Plugin.Livestack {
             float[] pixels = new float[src.Length];
             for (int i = 0; i < src.Length; i++) {
                 pixels[i] = (float)(((double)src[i] - int.MinValue) / ((double)int.MaxValue - int.MinValue));
+            }
+            return pixels;
+        }
+
+        private static ushort[] ToUshortArray(byte[] src) {
+            ushort[] pixels = new ushort[src.Length];
+            for (int i = 0; i < src.Length; i++) {
+                pixels[i] = (ushort)((src[i] / (double)byte.MaxValue) * ushort.MaxValue);
+            }
+            return pixels;
+        }
+
+        private static ushort[] ToUshortArray(double[] src) {
+            ushort[] pixels = new ushort[src.Length];
+            for (int i = 0; i < src.Length; i++) {
+                pixels[i] = (ushort)(src[i] * ushort.MaxValue);
+            }
+            return pixels;
+        }
+
+        private static ushort[] ToUshortArray(float[] src) {
+            ushort[] pixels = new ushort[src.Length];
+            for (int i = 0; i < src.Length; i++) {
+                pixels[i] = (ushort)(src[i] * ushort.MaxValue);
+            }
+            return pixels;
+        }
+
+        private static ushort[] ToUshortArray(long[] src) {
+            ushort[] pixels = new ushort[src.Length];
+            for (int i = 0; i < src.Length; i++) {
+                pixels[i] = (ushort)((((double)src[i] - long.MinValue) / ((double)long.MaxValue - long.MinValue)) * ushort.MaxValue);
+            }
+            return pixels;
+        }
+
+        private static ushort[] ToUshortArray(int[] src) {
+            ushort[] pixels = new ushort[src.Length];
+            for (int i = 0; i < src.Length; i++) {
+                pixels[i] = (ushort)((((double)src[i] - int.MinValue) / ((double)int.MaxValue - int.MinValue)) * ushort.MaxValue);
             }
             return pixels;
         }

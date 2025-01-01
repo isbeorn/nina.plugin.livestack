@@ -61,7 +61,7 @@ namespace NINA.Plugin.Livestack.Image {
                 List<ushort[]> pixelRows = new List<ushort[]>();
 
                 for (int i = 0; i < images.Count; i++) {
-                    var pixel = images[i].ReadPixelRow<ushort>(idxRow);
+                    var pixel = images[i].ReadPixelRowAsUShort(idxRow);
                     pixelRows.Add(pixel);
                 }
 
