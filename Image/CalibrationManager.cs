@@ -68,7 +68,7 @@ namespace NINA.Plugin.Livestack.Image {
             }
         }
 
-        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset, string inFilter, bool isBayered, CancellationToken token) {
+        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset, string inFilter, bool isBayered) {
             var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
             CalibrationFrameMeta meta = null;
             if (BiasLibrary?.Count > 0) {
@@ -85,7 +85,7 @@ namespace NINA.Plugin.Livestack.Image {
             return master;
         }
 
-        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token) {
+        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
             var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
             CalibrationFrameMeta meta = null;
             if (DarkLibrary?.Count > 0) {
@@ -105,7 +105,7 @@ namespace NINA.Plugin.Livestack.Image {
             return master;
         }
 
-        private CalibrationMaster GetFlatMaster(int width, int height, string inFilter, bool isBayered, CancellationToken token) {
+        private CalibrationMaster GetFlatMaster(int width, int height, string inFilter, bool isBayered) {
             var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
             CalibrationFrameMeta meta = null;
             if (FlatLibrary?.Count > 0) {
@@ -125,13 +125,13 @@ namespace NINA.Plugin.Livestack.Image {
             return master;
         }
 
-        public ushort[] ApplyLightFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token) {
+        public ushort[] ApplyLightFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
             CalibrationMaster bias = null;
             if (LivestackMediator.Plugin.UseBiasForLights) {
-                bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered, token);
+                bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
             }
-            var dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered, token);
-            var flat = GetFlatMaster(width, height, inFilter, isBayered, token);
+            var dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
+            var flat = GetFlatMaster(width, height, inFilter, isBayered);
 
             ushort[] imageArray = new ushort[width * height];
             double flatCorrected = 1d;
@@ -175,11 +175,11 @@ namespace NINA.Plugin.Livestack.Image {
             return imageArray;
         }
 
-        public ushort[] ApplyFlatFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token) {
-            var bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered, token);
+        public ushort[] ApplyFlatFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
+            var bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
             CalibrationMaster dark = null;
             if (bias == null) {
-                dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered, token);
+                dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
             }
 
             ushort[] imageArray = new ushort[width * height];

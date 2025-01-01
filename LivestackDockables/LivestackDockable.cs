@@ -273,7 +273,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             return true;
         }
 
-        private async Task<(LiveStackTab, bool created)> GetOrCreateStackBag(LiveStackItem item, CancellationToken token) {
+        private LiveStackTab GetOrCreateStackBag(LiveStackItem item) {
             var target = string.IsNullOrWhiteSpace(item.Target) ? LiveStackBag.NOTARGET : item.Target;
             var filter = string.IsNullOrWhiteSpace(item.Filter) ? LiveStackBag.NOFILTER : item.Filter;
             if (item.IsBayered) { filter = LiveStackBag.RED_OSC; }
@@ -285,36 +285,29 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 var bag = new LiveStackBag(target, filter, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
                 tab = new LiveStackTab(profileService, bag);
                 Tabs.Add(tab);
-                return (tab as LiveStackTab, true);
+                return tab as LiveStackTab;
             }
-            return (tab as LiveStackTab, false);
+            return tab as LiveStackTab;
         }
 
-        private async Task StackMono(LiveStackItem item, LiveStackTab tab, CalibrationManager calibrationManager, CancellationToken token) {
-            ushort[] theImageArray;
-            StatusUpdate("Calibrating frame", item);
-            using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
-                theImageArray = calibrationManager.ApplyLightFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered, token);
-            }
+        private async Task StackMono(ushort[] theImageArray, LiveStackItem item, LiveStackTab tab, CancellationToken token) {
+            if (tab.Stack == null) {
+                tab.AddImage(theImageArray);
+            } else {
+                StatusUpdate("Aligning frame", item);
+                var stars = ImageTransformer.GetStars(item.StarList, item.Width, item.Height);
+                var affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, tab.ReferenceStars);
+                var flipped = ImageTransformer.IsFlippedImage(affineTransformationMatrix);
+                if (flipped) {
+                    // The reference is flipped - most likely a meridian flip happend. Rotate starlist by 180° and recompute the affine transform for a tighter fit. The apply method will then account for the indexing switch
+                    stars = ImageMath.Flip(stars, item.Width, item.Height);
+                    affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, tab.ReferenceStars);
+                }
+                var transformedImage = ImageTransformer.ApplyAffineTransformation(theImageArray, item.Width, item.Height, affineTransformationMatrix, flipped);
 
-            if (LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.HotpixelRemoval), true)) {
-                StatusUpdate("Removing hot pixels in frame", item);
-                ImageMath.RemoveHotPixelOutliers(theImageArray, item.Width, item.Height);
+                StatusUpdate("Updating stack", item);
+                tab.AddImage(transformedImage);
             }
-
-            StatusUpdate("Aligning frame", item);
-            var stars = ImageTransformer.GetStars(item.StarList, item.Width, item.Height);
-            var affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, tab.ReferenceStars);
-            var flipped = ImageTransformer.IsFlippedImage(affineTransformationMatrix);
-            if (flipped) {
-                // The reference is flipped - most likely a meridian flip happend. Rotate starlist by 180° and recompute the affine transform for a tighter fit. The apply method will then account for the indexing switch
-                stars = ImageMath.Flip(stars, item.Width, item.Height);
-                affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, tab.ReferenceStars);
-            }
-            var transformedImage = ImageTransformer.ApplyAffineTransformation(theImageArray, item.Width, item.Height, affineTransformationMatrix, flipped);
-
-            StatusUpdate("Updating stack", item);
-            tab.AddImage(transformedImage);
 
             StatusUpdate("Rendering stack", item);
             await tab.Refresh(token);
@@ -322,17 +315,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             tab.SaveToDisk();
         }
 
-        private async Task StackOSC(LiveStackItem item, LiveStackTab redTab, CalibrationManager calibrationManager, CancellationToken token) {
-            ushort[] theImageArray;
-            StatusUpdate("Calibrating frame", item);
-            using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
-                theImageArray = calibrationManager.ApplyLightFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered, token);
-                if (LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.HotpixelRemoval), true)) {
-                    StatusUpdate("Removing hot pixels in frame", item);
-                    ImageMath.RemoveHotPixelOutliers(theImageArray, item.Width, item.Height);
-                }
-            }
-
+        private async Task StackOSC(ushort[] theImageArray, LiveStackItem item, LiveStackTab redTab, CancellationToken token) {
             var meta = new ImageMetaData(); // Set bare minimum for star detection resize factor
             meta.Camera.PixelSize = profileService.ActiveProfile.CameraSettings.PixelSize;
             meta.Telescope.FocalLength = profileService.ActiveProfile.TelescopeSettings.FocalLength;
@@ -420,36 +403,23 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private async Task StackItem(LiveStackItem item, CancellationToken token) {
-            var (tab, created) = await GetOrCreateStackBag(item, token);
+            var tab = GetOrCreateStackBag(item);
             tab.Locked = true;
             try {
                 using var calibrationManager = new CalibrationManager();
                 RegisterCalibrationMasters(calibrationManager);
-
-                if (created && !tab.Properties.IsBayered) {
-                    if (SelectedTab == null) {
-                        SelectedTab = tab;
-                    }
-                    StatusUpdate("Calibrating frame", item);
-                    using (var reader = new CFitsioFITSReader(item.Path)) {
-                        var theImageArray = calibrationManager.ApplyLightFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered, token);
-                        if (!item.IsBayered && LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.HotpixelRemoval), true)) {
-                            applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "Removing hot pixels in frame" });
-                            ImageMath.RemoveHotPixelOutliers(theImageArray, item.Width, item.Height);
-                        }
-                        tab.AddImage(theImageArray);
-                    }
-
-                    StatusUpdate("Rendering stack", item);
-                    await tab.Refresh(token);
-
-                    return;
+                if (SelectedTab == null) {
+                    SelectedTab = tab;
                 }
 
+                var calibratedFrame = CalibrateFrame(item, calibrationManager);
+
+                RemoveHotpixelsIfNeeded(calibratedFrame, item);
+
                 if (item.IsBayered) {
-                    await StackOSC(item, tab, calibrationManager, token);
+                    await StackOSC(calibratedFrame, item, tab, token);
                 } else {
-                    await StackMono(item, tab, calibrationManager, token);
+                    await StackMono(calibratedFrame, item, tab, token);
                 }
 
                 var colorTab = Tabs.Where(x => x is ColorCombinationTab && x.Target == tab.Target).FirstOrDefault() as ColorCombinationTab;
@@ -459,6 +429,22 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 }
             } finally {
                 tab.Locked = false;
+            }
+        }
+
+        private ushort[] CalibrateFrame(LiveStackItem item, CalibrationManager calibrationManager) {
+            ushort[] theImageArray;
+            StatusUpdate("Calibrating frame", item);
+            using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
+                theImageArray = calibrationManager.ApplyLightFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered);
+            }
+            return theImageArray;
+        }
+
+        private void RemoveHotpixelsIfNeeded(ushort[] theImageArray, LiveStackItem item) {
+            if (LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.HotpixelRemoval), true)) {
+                StatusUpdate("Removing hot pixels in frame", item);
+                ImageMath.RemoveHotPixelOutliers(theImageArray, item.Width, item.Height);
             }
         }
 
