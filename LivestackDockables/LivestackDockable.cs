@@ -359,7 +359,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                     stars = ImageMath.Flip(stars, item.Width, item.Height);
                     affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, redTab.ReferenceStars);
                 }
-                var redAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Red.ToFloatArray(), item.Width, item.Height, affineTransformationMatrix, flipped);
+                var redAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Red, item.Width, item.Height, affineTransformationMatrix, flipped);
                 redTab.AddImage(redAligned);
             }
 
@@ -371,7 +371,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 greenTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(greenTab);
             } else {
-                var greenAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Green.ToFloatArray(), item.Width, item.Height, affineTransformationMatrix, flipped);
+                var greenAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Green, item.Width, item.Height, affineTransformationMatrix, flipped);
                 greenTab.AddImage(greenAligned);
             }
 
@@ -383,7 +383,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 blueTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(blueTab);
             } else {
-                var blueAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Blue.ToFloatArray(), item.Width, item.Height, affineTransformationMatrix, flipped);
+                var blueAligned = ImageTransformer.ApplyAffineTransformation(debayeredImage.Data.Blue, item.Width, item.Height, affineTransformationMatrix, flipped);
                 blueTab.AddImage(blueAligned);
             }
 

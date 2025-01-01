@@ -86,8 +86,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private BitmapSource Render(double stretchFactor, double blackClipping, int downsample) {
-            var ushortStack = Stack.ToUShortArray();
-            using var bmp = ImageMath.CreateGrayBitmap(ushortStack, Properties.Width, Properties.Height);
+            using var bmp = ImageMath.CreateGrayBitmap(Stack, Properties.Width, Properties.Height);
             var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(bmp.Median, bmp.MedianAbsoluteDeviation, Properties.BitDepth), stretchFactor, blackClipping, PixelFormats.Gray16);
             filter.ApplyInPlace(bmp.Bitmap);
 

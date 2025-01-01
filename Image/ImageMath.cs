@@ -246,7 +246,7 @@ namespace NINA.Plugin.Livestack.Image {
             return rgb48Bitmap;
         }
 
-        public static BitmapWithMedian CreateGrayBitmap(ushort[] data, int width, int height) {
+        public static BitmapWithMedian CreateGrayBitmap(float[] data, int width, int height) {
             if (data.Length != width * height)
                 throw new ArgumentException("Data length does not match width and height dimensions.");
 
@@ -266,7 +266,7 @@ namespace NINA.Plugin.Livestack.Image {
                 ushort* ptr = (ushort*)bitmapData.Scan0;
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++) {
-                        var pixel = data[y * width + x];
+                        var pixel = (ushort)(data[y * width + x] * ushort.MaxValue);
                         pixelValueCounts[pixel]++;
                         ptr[y * stride + x] = pixel;
                     }

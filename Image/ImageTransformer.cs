@@ -120,6 +120,38 @@ namespace NINA.Plugin.Livestack.Image {
             return transformedImageData;
         }
 
+        public static float[] ApplyAffineTransformation(ushort[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
+            // Create a new output array to hold the transformed image
+            float[] transformedImageData = new float[width * height];
+
+            // Loop through all pixels in the source image
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    // Apply the affine transformation to each pixel's coordinates
+                    var transformedCoords = ApplyAffineMatrix(x, y, affineMatrix);
+
+                    // Map transformed coordinates back to the new image
+                    int newX = (int)transformedCoords.X;
+                    int newY = (int)transformedCoords.Y;
+                    if (flippedImage) {
+                        newX = width - 1 - newX;
+                        newY = height - 1 - newY;
+                    }
+
+                    // Ensure we stay within the image bounds
+                    if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+                        // Get the interpolated pixel value from the source image data at the transformed coordinates
+                        float newPixelValue = GetInterpolatedPixelValue(newX, newY, sourceImageData, width, height);
+
+                        // Set the pixel in the transformed image data
+                        transformedImageData[y * width + x] = newPixelValue;
+                    }
+                }
+            }
+
+            return transformedImageData;
+        }
+
         public static ushort[] ApplyAffineTransformationAsUshort(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
             // Create a new output array to hold the transformed image
             ushort[] transformedImageData = new ushort[width * height];
@@ -234,6 +266,37 @@ namespace NINA.Plugin.Livestack.Image {
             float c01 = imageData[y0 * width + x1];
             float c10 = imageData[y1 * width + x0];
             float c11 = imageData[y1 * width + x1];
+
+            float xFraction = x - x0;
+            float yFraction = y - y0;
+
+            // Calculate the interpolated pixel value
+            float interpolatedValue = (float)(
+                c00 * (1 - xFraction) * (1 - yFraction) +
+                c01 * xFraction * (1 - yFraction) +
+                c10 * (1 - xFraction) * yFraction +
+                c11 * xFraction * yFraction
+            );
+
+            return interpolatedValue;
+        }
+
+        private static float GetInterpolatedPixelValue(int x, int y, ushort[] imageData, int width, int height) {
+            if (x < 0 || y < 0 || x >= width || y >= height) {
+                return 0; // Out-of-bounds pixels return 0 (or any appropriate default value)
+            }
+
+            // Bilinear interpolation
+            int x0 = x;
+            int y0 = y;
+            int x1 = Math.Min(x0 + 1, width - 1);
+            int y1 = Math.Min(y0 + 1, height - 1);
+
+            // Get pixel values for interpolation
+            ushort c00 = imageData[y0 * width + x0];
+            ushort c01 = imageData[y0 * width + x1];
+            ushort c10 = imageData[y1 * width + x0];
+            ushort c11 = imageData[y1 * width + x1];
 
             float xFraction = x - x0;
             float yFraction = y - y0;

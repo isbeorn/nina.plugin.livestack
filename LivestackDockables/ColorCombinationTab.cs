@@ -119,7 +119,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                         var greenData = AlignTab(red, green);
                         var blueData = AlignTab(red, blue);
 
-                        using var redBitmap = ImageMath.CreateGrayBitmap(red.Stack.ToUShortArray(), red.Properties.Width, red.Properties.Height);
+                        using var redBitmap = ImageMath.CreateGrayBitmap(red.Stack, red.Properties.Width, red.Properties.Height);
                         var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(redBitmap.Median, redBitmap.MedianAbsoluteDeviation, red.Properties.BitDepth), RedStretchFactor, RedBlackClipping, PixelFormats.Gray16);
                         filter.ApplyInPlace(redBitmap.Bitmap);
                         token.ThrowIfCancellationRequested();
@@ -174,7 +174,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             ImageFlipValue *= -1;
         }
 
-        private ushort[] AlignTab(LiveStackTab reference, LiveStackTab target) {
+        private float[] AlignTab(LiveStackTab reference, LiveStackTab target) {
             var stars = target.ReferenceStars;
             var affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, reference.ReferenceStars);
             var flipped = ImageTransformer.IsFlippedImage(affineTransformationMatrix);
@@ -183,7 +183,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 stars = ImageMath.Flip(stars, target.Properties.Width, target.Properties.Height);
                 affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, reference.ReferenceStars);
             }
-            return ImageTransformer.ApplyAffineTransformationAsUshort(target.Stack, target.Properties.Width, target.Properties.Height, affineTransformationMatrix, flipped);
+            return ImageTransformer.ApplyAffineTransformation(target.Stack, target.Properties.Width, target.Properties.Height, affineTransformationMatrix, flipped);
         }
     }
 }
