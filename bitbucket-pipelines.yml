@@ -40,7 +40,7 @@ pipelines:
               ##############################################################
               ## START Add additonal required output based on your plugin ##
               ##############################################################
-              - cp bin/Release/net8.0-windows/MathNet.Numerics.dll.dll ${BITBUCKET_CLONE_DIR}/packages/MathNet.Numerics.dll.dll
+              - cp bin/Release/net8.0-windows/MathNet.Numerics.dll ${BITBUCKET_CLONE_DIR}/packages/MathNet.Numerics.dll
               ##############################################################
               ## END   Add additonal required output based on your plugin ##
               ##############################################################
