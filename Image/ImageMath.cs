@@ -6,23 +6,15 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Drawing.Imaging;
 using System.Drawing;
-using Accord.Imaging.Filters;
-using Accord.Imaging;
-using Accord.Math;
+using MathNet.Numerics.Statistics;
 
 namespace NINA.Plugin.Livestack.Image {
 
     public class ImageMath {
 
-        public static ushort[] Clone(ushort[] array) {
-            ushort[] clone = new ushort[array.Length];
-            Buffer.BlockCopy(array, 0, clone, 0, array.Length * sizeof(ushort));
-            return clone;
-        }
-
-        public static void SequentialStack(ushort[] image, ushort[] stack, int stackImageCount) {
+        public static void SequentialStack(float[] image, float[] stack, int stackImageCount) {
             for (int i = 0; i < stack.Length; i++) {
-                stack[i] = (ushort)((stackImageCount * stack[i] + image[i]) / (stackImageCount + 1));
+                stack[i] = (stackImageCount * stack[i] + image[i]) / (stackImageCount + 1);
             }
         }
 
@@ -37,12 +29,12 @@ namespace NINA.Plugin.Livestack.Image {
         public static float[] PercentileClipping(List<CFitsioFITSReader> images, double lowerPercentile, double upperPercentile) {
             if (images.Count == 0) { return []; }
 
-            double[] imageMedian = new double[images.Count];
+            float[] imageMedian = new float[images.Count];
             for (int i = 0; i < images.Count; i++) {
                 var image = images[i];
-                imageMedian[i] = image.ReadDoubleHeader("MEDIAN");
+                imageMedian[i] = image.ReadFloatHeader("MEDIAN");
             }
-            double[] normalization = new double[images.Count];
+            float[] normalization = new float[images.Count];
             var reference = imageMedian[0];
             for (int i = 0; i < images.Count; i++) {
                 normalization[i] = reference / imageMedian[i];
@@ -58,30 +50,27 @@ namespace NINA.Plugin.Livestack.Image {
             float[] master = new float[totalPixels];
 
             for (int idxRow = 0; idxRow < height; idxRow++) {
-                List<ushort[]> pixelRows = new List<ushort[]>();
+                List<float[]> pixelRows = new List<float[]>();
 
                 for (int i = 0; i < images.Count; i++) {
-                    var pixel = images[i].ReadPixelRowAsUShort(idxRow);
+                    var pixel = images[i].ReadPixelRowAsFloat(idxRow);
                     pixelRows.Add(pixel);
                 }
 
                 for (int idxCol = 0; idxCol < width; idxCol++) {
                     var pixelIndex = idxRow * width + idxCol;
 
-                    ushort[] pixelValues = new ushort[numberOfImages];
+                    float[] pixelValues = new float[numberOfImages];
                     for (int i = 0; i < images.Count; i++) {
                         var pixel = pixelRows[i][idxCol];
-                        pixel = (ushort)(pixel * normalization[i]);
+                        pixel = pixel * normalization[i];
                         pixelValues[i] = pixel;
                     }
 
-                    pixelValues.Sort();
-                    int size = pixelValues.Length;
-                    int mid = size / 2;
-                    float median = (size % 2 != 0) ? pixelValues[mid] : (pixelValues[mid] + pixelValues[mid - 1]) / 2;
+                    var median = pixelValues.Median();
 
-                    long sum = 0;
-                    long count = 0;
+                    float sum = 0;
+                    float count = 0;
                     foreach (var pixel in pixelValues) {
                         if (median - (median * lowerPercentile) <= pixel && pixel <= median + (median * upperPercentile)) {
                             sum += pixel;
@@ -89,9 +78,9 @@ namespace NINA.Plugin.Livestack.Image {
                         }
                     }
                     if (count == 0) {
-                        master[pixelIndex] = median / 65535.0f;
+                        master[pixelIndex] = median;
                     } else {
-                        master[pixelIndex] = (sum / count) / 65535.0f;
+                        master[pixelIndex] = sum / count;
                     }
                 }
             }
@@ -157,17 +146,17 @@ namespace NINA.Plugin.Livestack.Image {
             return output;
         }
 
-        public static void RemoveHotPixelOutliers(ushort[] imageData, int width, int height, int neighborSize = 1, double outlierFactor = 10.0) {
+        public static void RemoveHotPixelOutliers(float[] imageData, int width, int height, int neighborSize = 1, double outlierFactor = 10.0) {
             int windowSize = (2 * neighborSize + 1) * (2 * neighborSize + 1) - 1; // Total neighbors excluding the center pixel
-            double[] meanBuffer = new double[width * height];
-            double[] stdDevBuffer = new double[width * height];
+            float[] meanBuffer = new float[width * height];
+            float[] stdDevBuffer = new float[width * height];
 
             // Precompute neighborhood statistics
             Parallel.For(0, height, y => {
                 for (int x = 0; x < width; x++) {
                     int index = y * width + x;
-                    double sum = 0;
-                    double sumSquared = 0;
+                    float sum = 0;
+                    float sumSquared = 0;
                     int count = 0;
 
                     for (int dy = -neighborSize; dy <= neighborSize; dy++) {
@@ -176,7 +165,7 @@ namespace NINA.Plugin.Livestack.Image {
                             int ny = y + dy;
 
                             if ((dx != 0 || dy != 0) && nx >= 0 && nx < width && ny >= 0 && ny < height) {
-                                ushort neighborValue = imageData[ny * width + nx];
+                                float neighborValue = imageData[ny * width + nx];
                                 sum += neighborValue;
                                 sumSquared += neighborValue * neighborValue;
                                 count++;
@@ -184,9 +173,9 @@ namespace NINA.Plugin.Livestack.Image {
                         }
                     }
 
-                    double mean = sum / count;
-                    double variance = sumSquared / count - mean * mean;
-                    double stdDev = Math.Sqrt(Math.Max(variance, 0)); // Avoid negative variance due to floating-point precision
+                    float mean = sum / count;
+                    float variance = sumSquared / count - mean * mean;
+                    float stdDev = (float)Math.Sqrt(Math.Max(variance, 0f)); // Avoid negative variance due to floating-point precision
 
                     meanBuffer[index] = mean;
                     stdDevBuffer[index] = stdDev;
@@ -197,11 +186,11 @@ namespace NINA.Plugin.Livestack.Image {
             Parallel.For(0, height, y => {
                 for (int x = 0; x < width; x++) {
                     int index = y * width + x;
-                    double mean = meanBuffer[index];
-                    double stdDev = stdDevBuffer[index];
+                    float mean = meanBuffer[index];
+                    float stdDev = stdDevBuffer[index];
 
                     if (Math.Abs(imageData[index] - mean) > outlierFactor * stdDev) {
-                        imageData[index] = (ushort)mean; // Replace with mean
+                        imageData[index] = mean; // Replace with mean
                     }
                 }
             });
@@ -257,7 +246,7 @@ namespace NINA.Plugin.Livestack.Image {
             return rgb48Bitmap;
         }
 
-        public static Bitmap CreateGrayBitmap(ushort[] data, int width, int height) {
+        public static BitmapWithMedian CreateGrayBitmap(ushort[] data, int width, int height) {
             if (data.Length != width * height)
                 throw new ArgumentException("Data length does not match width and height dimensions.");
 
@@ -271,12 +260,15 @@ namespace NINA.Plugin.Livestack.Image {
             int bytesPerPixel = 2; // 16 bits per pixel (2 bytes per pixel)
             int stride = bitmapData.Stride / bytesPerPixel; // Adjust for row alignment
 
+            int[] pixelValueCounts = new int[ushort.MaxValue + 1];
             // Copy the data row by row to handle potential stride padding
             unsafe {
                 ushort* ptr = (ushort*)bitmapData.Scan0;
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++) {
-                        ptr[y * stride + x] = data[y * width + x];
+                        var pixel = data[y * width + x];
+                        pixelValueCounts[pixel]++;
+                        ptr[y * stride + x] = pixel;
                     }
                 }
             }
@@ -284,17 +276,32 @@ namespace NINA.Plugin.Livestack.Image {
             // Unlock the bitmap
             grayBitmap.UnlockBits(bitmapData);
 
-            return grayBitmap;
+            var (median, mad) = CalculateMedianAndMAD(pixelValueCounts, width * height);
+
+            return new(grayBitmap, median, mad);
         }
 
-        public static (double Median, double MAD) CalculateMedianAndMAD(ushort[] data) {
-            int[] pixelValueCounts = new int[ushort.MaxValue + 1];
-            foreach (var pixel in data) {
-                pixelValueCounts[pixel]++;
+        public class BitmapWithMedian : IDisposable {
+
+            public BitmapWithMedian(Bitmap bitmap, double median, double medianAbsoluteDeviation) {
+                Bitmap = bitmap;
+                Median = median;
+                MedianAbsoluteDeviation = medianAbsoluteDeviation;
             }
+
+            public Bitmap Bitmap { get; }
+            public double Median { get; }
+            public double MedianAbsoluteDeviation { get; }
+
+            public void Dispose() {
+                Bitmap.Dispose();
+            }
+        }
+
+        public static (double Median, double MAD) CalculateMedianAndMAD(int[] pixelValueCounts, int originalDataLength) {
             int median1 = 0, median2 = 0;
             var occurrences = 0;
-            var medianlength = data.Length / 2.0;
+            var medianlength = originalDataLength / 2.0;
             for (ushort i = 0; i < ushort.MaxValue; i++) {
                 occurrences += pixelValueCounts[i];
                 if (occurrences > medianlength) {

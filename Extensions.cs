@@ -23,21 +23,26 @@ namespace NINA.Plugin.Livestack {
             }
         }
 
-        public static double StdDev<T>(this IEnumerable<T> list, Func<T, double> values) {
-            var mean = 0.0;
-            var sum = 0.0;
-            var stdDev = 0.0;
-            var n = 0;
-            foreach (var value in list.Select(values)) {
-                n++;
-                var delta = value - mean;
-                mean += delta / n;
-                sum += delta * (value - mean);
-            }
-            if (1 < n)
-                stdDev = Math.Sqrt(sum / (n - 1));
+        public static ushort[] ToUShortArray(this float[] source) {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
 
-            return stdDev;
+            ushort[] result = new ushort[source.Length];
+            for (int i = 0; i < source.Length; i++) {
+                result[i] = (ushort)Math.Clamp(source[i] * ushort.MaxValue, 0, ushort.MaxValue);
+            }
+            return result;
+        }
+
+        public static float[] ToFloatArray(this ushort[] source) {
+            if (source == null)
+                throw new ArgumentNullException(nameof(source));
+
+            float[] result = new float[source.Length];
+            for (int i = 0; i < source.Length; i++) {
+                result[i] = source[i] / (float)ushort.MaxValue;
+            }
+            return result;
         }
     }
 }

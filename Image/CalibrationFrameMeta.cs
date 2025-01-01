@@ -8,10 +8,10 @@ namespace NINA.Plugin.Livestack.Image {
     public class CalibrationFrameMeta {
 
         public CalibrationFrameMeta() {
-            Mean = double.NaN;
+            Mean = float.NaN;
         }
 
-        public CalibrationFrameMeta(CalibrationFrameType type, string path, int gain, int offset, double exposureTime, string filter, int width, int height, double mean) {
+        public CalibrationFrameMeta(CalibrationFrameType type, string path, int gain, int offset, double exposureTime, string filter, int width, int height, float mean) {
             Type = type;
             Path = path;
             Gain = gain;
@@ -48,7 +48,7 @@ namespace NINA.Plugin.Livestack.Image {
         public int Height { get; set; }
 
         [JsonProperty]
-        public double Mean { get; set; }
+        public float Mean { get; set; }
 
         public override bool Equals(object obj) {
             if (obj is CalibrationFrameMeta other) {

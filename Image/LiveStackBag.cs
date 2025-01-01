@@ -32,12 +32,14 @@ namespace NINA.Plugin.Livestack.Image {
         public ImageProperties Properties { get; private set; }
 
         public List<Accord.Point> ReferenceImageStars { get; private set; }
-        public ushort[] Stack { get; private set; }
+        public float[] Stack { get; private set; }
+
         public string Filter { get; }
+
         public string Target { get; }
         public int ImageCount { get; private set; }
 
-        public void Add(ushort[] image) {
+        public void Add(float[] image) {
             if (Stack == null) {
                 Stack = image;
             } else {
@@ -46,25 +48,7 @@ namespace NINA.Plugin.Livestack.Image {
             ImageCount++;
         }
 
-        public BitmapSource Render(double stretchFactor, double blackClipping, int downsample) {
-            using var bmp = ImageMath.CreateGrayBitmap(Stack, Properties.Width, Properties.Height);
-            var (redMedian, redMAD) = ImageMath.CalculateMedianAndMAD(Stack);
-            var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(redMedian, redMAD, Properties.BitDepth), stretchFactor, blackClipping, PixelFormats.Gray16);
-            filter.ApplyInPlace(bmp);
-
-            BitmapSource source;
-            if (downsample > 1) {
-                using var downsampledBmp = ImageMath.DownsampleGray16(bmp, downsample);
-                source = ImageUtility.ConvertBitmap(downsampledBmp);
-            } else {
-                source = ImageUtility.ConvertBitmap(bmp);
-            }
-
-            source.Freeze();
-            return source;
-        }
-
-        public void ForcePushReference(ImageProperties properties, List<Accord.Point> referenceStars, ushort[] stack) {
+        public void ForcePushReference(ImageProperties properties, List<Accord.Point> referenceStars, float[] stack) {
             Properties = properties;
             ReferenceImageStars = referenceStars;
             Stack = stack;

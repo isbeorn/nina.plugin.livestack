@@ -2,6 +2,7 @@
 using CommunityToolkit.Mvvm.Input;
 using NINA.Astrometry;
 using NINA.Core.Utility;
+using NINA.Image.ImageAnalysis;
 using NINA.Image.ImageData;
 using NINA.Image.Interfaces;
 using NINA.Plugin.Livestack.Image;
@@ -15,6 +16,7 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Documents;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace NINA.Plugin.Livestack.LivestackDockables {
@@ -54,7 +56,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         public List<Accord.Point> ReferenceStars => bag.ReferenceImageStars;
 
-        public ushort[] Stack => bag.Stack;
+        public float[] Stack => bag.Stack;
 
         public ImageProperties Properties => bag.Properties;
 
@@ -73,10 +75,31 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         public async Task Refresh(CancellationToken token) {
             try {
                 await Task.Run(() => {
-                    StackImage = bag.Render(StretchFactor, BlackClipping, Downsample);
+                    StackImage = Render(StretchFactor, BlackClipping, Downsample);
                     StackCount = bag.ImageCount;
                 }, token);
-            } catch { }
+            } catch {
+            } finally {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+        }
+
+        private BitmapSource Render(double stretchFactor, double blackClipping, int downsample) {
+            var ushortStack = Stack.ToUShortArray();
+            using var bmp = ImageMath.CreateGrayBitmap(ushortStack, Properties.Width, Properties.Height);
+            var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(bmp.Median, bmp.MedianAbsoluteDeviation, Properties.BitDepth), stretchFactor, blackClipping, PixelFormats.Gray16);
+            filter.ApplyInPlace(bmp.Bitmap);
+
+            BitmapSource source;
+            if (downsample > 1) {
+                using var downsampledBmp = ImageMath.DownsampleGray16(bmp.Bitmap, downsample);
+                source = ImageUtility.ConvertBitmap(downsampledBmp);
+            } else {
+                source = ImageUtility.ConvertBitmap(bmp.Bitmap);
+            }
+            source.Freeze();
+            return source;
         }
 
         [RelayCommand]
@@ -89,11 +112,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             ImageFlipValue *= -1;
         }
 
-        public void AddImage(ushort[] data) {
+        public void AddImage(float[] data) {
             bag.Add(data);
         }
 
-        public void ForcePushReference(ImageProperties properties, List<Accord.Point> referenceStars, ushort[] stack) {
+        public void ForcePushReference(ImageProperties properties, List<Accord.Point> referenceStars, float[] stack) {
             bag.ForcePushReference(properties, referenceStars, stack);
         }
 

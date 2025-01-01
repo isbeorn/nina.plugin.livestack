@@ -119,29 +119,26 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                         var greenData = AlignTab(red, green);
                         var blueData = AlignTab(red, blue);
 
-                        using var redBitmap = ImageMath.CreateGrayBitmap(red.Stack, red.Properties.Width, red.Properties.Height);
-                        var (redMedian, redMAD) = ImageMath.CalculateMedianAndMAD(red.Stack);
-                        var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(redMedian, redMAD, red.Properties.BitDepth), RedStretchFactor, RedBlackClipping, PixelFormats.Gray16);
-                        filter.ApplyInPlace(redBitmap);
+                        using var redBitmap = ImageMath.CreateGrayBitmap(red.Stack.ToUShortArray(), red.Properties.Width, red.Properties.Height);
+                        var filter = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(redBitmap.Median, redBitmap.MedianAbsoluteDeviation, red.Properties.BitDepth), RedStretchFactor, RedBlackClipping, PixelFormats.Gray16);
+                        filter.ApplyInPlace(redBitmap.Bitmap);
                         token.ThrowIfCancellationRequested();
 
                         using var blueBitmap = ImageMath.CreateGrayBitmap(blueData, blue.Properties.Width, blue.Properties.Height);
-                        var (blueMedian, blueMAD) = ImageMath.CalculateMedianAndMAD(blueData);
-                        var filterBlue = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(blueMedian, blueMAD, blue.Properties.BitDepth), BlueStretchFactor, BlueBlackClipping, PixelFormats.Gray16);
-                        filterBlue.ApplyInPlace(blueBitmap);
+                        var filterBlue = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(blueBitmap.Median, blueBitmap.MedianAbsoluteDeviation, blue.Properties.BitDepth), BlueStretchFactor, BlueBlackClipping, PixelFormats.Gray16);
+                        filterBlue.ApplyInPlace(blueBitmap.Bitmap);
                         token.ThrowIfCancellationRequested();
 
                         using var greenBitmap = ImageMath.CreateGrayBitmap(greenData, green.Properties.Width, green.Properties.Height);
-                        var (greenMedian, greenMAD) = ImageMath.CalculateMedianAndMAD(greenData);
-                        var filterGreen = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(greenMedian, greenMAD, green.Properties.BitDepth), GreenStretchFactor, GreenBlackClipping, PixelFormats.Gray16);
-                        filterGreen.ApplyInPlace(greenBitmap);
+                        var filterGreen = ImageUtility.GetColorRemappingFilter(new MedianOnlyStatistics(greenBitmap.Median, greenBitmap.MedianAbsoluteDeviation, green.Properties.BitDepth), GreenStretchFactor, GreenBlackClipping, PixelFormats.Gray16);
+                        filterGreen.ApplyInPlace(greenBitmap.Bitmap);
                         token.ThrowIfCancellationRequested();
 
                         BitmapSource source;
                         if (Downsample > 1) {
-                            using var downsampledRed = ImageMath.DownsampleGray16(redBitmap, Downsample);
-                            using var downsampledGreen = ImageMath.DownsampleGray16(greenBitmap, Downsample);
-                            using var downsampledBlue = ImageMath.DownsampleGray16(blueBitmap, Downsample);
+                            using var downsampledRed = ImageMath.DownsampleGray16(redBitmap.Bitmap, Downsample);
+                            using var downsampledGreen = ImageMath.DownsampleGray16(greenBitmap.Bitmap, Downsample);
+                            using var downsampledBlue = ImageMath.DownsampleGray16(blueBitmap.Bitmap, Downsample);
 
                             using var colorBitmap = ImageMath.MergeGray16ToRGB48(downsampledRed, downsampledGreen, downsampledBlue);
                             if (EnableGreenDeNoise) {
@@ -149,7 +146,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                             }
                             source = ImageUtility.ConvertBitmap(colorBitmap, PixelFormats.Rgb48);
                         } else {
-                            using var colorBitmap = ImageMath.MergeGray16ToRGB48(redBitmap, greenBitmap, blueBitmap);
+                            using var colorBitmap = ImageMath.MergeGray16ToRGB48(redBitmap.Bitmap, greenBitmap.Bitmap, blueBitmap.Bitmap);
                             if (EnableGreenDeNoise) {
                                 ImageMath.ApplyGreenDeNoiseInPlace(colorBitmap, GreenDeNoiseAmount);
                             }
@@ -186,7 +183,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 stars = ImageMath.Flip(stars, target.Properties.Width, target.Properties.Height);
                 affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, reference.ReferenceStars);
             }
-            return ImageTransformer.ApplyAffineTransformation(target.Stack, target.Properties.Width, target.Properties.Height, affineTransformationMatrix, flipped);
+            return ImageTransformer.ApplyAffineTransformationAsUshort(target.Stack, target.Properties.Width, target.Properties.Height, affineTransformationMatrix, flipped);
         }
     }
 }

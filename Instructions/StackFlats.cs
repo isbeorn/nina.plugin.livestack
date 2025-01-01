@@ -1,5 +1,5 @@
-﻿using Accord.Statistics;
-using CommunityToolkit.Mvvm.ComponentModel;
+﻿using CommunityToolkit.Mvvm.ComponentModel;
+using MathNet.Numerics.Statistics;
 using Newtonsoft.Json;
 using NINA.Core.Model;
 using NINA.Core.Utility;
@@ -138,7 +138,7 @@ namespace NINA.Plugin.Livestack.Instructions {
                                     stackFits.PopulateHeaderCards(metaData);
                                     stackFits.Close();
 
-                                    var calibrationMeta = new CalibrationFrameMeta(CalibrationFrameType.FLAT, output, 0, 0, 0, filter, fitsFiles[0].Width, fitsFiles[0].Height, stack.Mean());
+                                    var calibrationMeta = new CalibrationFrameMeta(CalibrationFrameType.FLAT, output, 0, 0, 0, filter, fitsFiles[0].Width, fitsFiles[0].Height, (float)stack.Mean());
                                     LivestackMediator.CalibrationVM.AddSessionFlatMaster(calibrationMeta);
                                 }
                                 Logger.Info($"Cleaning up flat files for filter {filter}");
@@ -249,13 +249,13 @@ namespace NINA.Plugin.Livestack.Instructions {
                         foreach (var meta in LivestackMediator.CalibrationVM.DarkLibrary) {
                             calibrationManager.RegisterDarkMaster(meta);
                         }
-                        ushort[] theImageArray;
+                        float[] theImageArray;
                         using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
                             theImageArray = calibrationManager.ApplyFlatFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered);
                         }
 
                         Logger.Debug("Computing median after calibration");
-                        var (median, _) = ImageMath.CalculateMedianAndMAD(theImageArray);
+                        var median = theImageArray.Median();
 
                         Logger.Info($"Saving calibrated flat frame at {destinationFile}");
                         var calibratedFits = new CFitsioFITSExtendedWriter(destinationFile, theImageArray, item.Width, item.Height, CfitsioNative.COMPRESSION.NOCOMPRESS);

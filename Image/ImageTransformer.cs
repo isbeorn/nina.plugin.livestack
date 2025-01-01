@@ -1,5 +1,5 @@
 ﻿using Accord;
-using Accord.Math;
+using MathNet.Numerics.LinearAlgebra.Double;
 using NINA.Image.ImageAnalysis;
 using System;
 using System.Collections.Generic;
@@ -88,7 +88,39 @@ namespace NINA.Plugin.Livestack.Image {
             return matrix;
         }
 
-        public static ushort[] ApplyAffineTransformation(ushort[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
+        public static float[] ApplyAffineTransformation(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
+            // Create a new output array to hold the transformed image
+            float[] transformedImageData = new float[width * height];
+
+            // Loop through all pixels in the source image
+            for (int y = 0; y < height; y++) {
+                for (int x = 0; x < width; x++) {
+                    // Apply the affine transformation to each pixel's coordinates
+                    var transformedCoords = ApplyAffineMatrix(x, y, affineMatrix);
+
+                    // Map transformed coordinates back to the new image
+                    int newX = (int)transformedCoords.X;
+                    int newY = (int)transformedCoords.Y;
+                    if (flippedImage) {
+                        newX = width - 1 - newX;
+                        newY = height - 1 - newY;
+                    }
+
+                    // Ensure we stay within the image bounds
+                    if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
+                        // Get the interpolated pixel value from the source image data at the transformed coordinates
+                        float newPixelValue = GetInterpolatedPixelValue(newX, newY, sourceImageData, width, height);
+
+                        // Set the pixel in the transformed image data
+                        transformedImageData[y * width + x] = newPixelValue;
+                    }
+                }
+            }
+
+            return transformedImageData;
+        }
+
+        public static ushort[] ApplyAffineTransformationAsUshort(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
             // Create a new output array to hold the transformed image
             ushort[] transformedImageData = new ushort[width * height];
 
@@ -109,10 +141,10 @@ namespace NINA.Plugin.Livestack.Image {
                     // Ensure we stay within the image bounds
                     if (newX >= 0 && newX < width && newY >= 0 && newY < height) {
                         // Get the interpolated pixel value from the source image data at the transformed coordinates
-                        ushort newPixelValue = GetInterpolatedPixelValue(newX, newY, sourceImageData, width, height);
+                        float newPixelValue = GetInterpolatedPixelValue(newX, newY, sourceImageData, width, height);
 
                         // Set the pixel in the transformed image data
-                        transformedImageData[y * width + x] = newPixelValue;
+                        transformedImageData[y * width + x] = (ushort)Math.Clamp(newPixelValue * ushort.MaxValue, 0, ushort.MaxValue);
                     }
                 }
             }
@@ -145,8 +177,8 @@ namespace NINA.Plugin.Livestack.Image {
                 throw new ArgumentException("At least 3 points are required for affine transformation.");
             }
 
-            var A = new double[numPoints * 2, 6];
-            var B = new double[numPoints * 2];
+            var A = DenseMatrix.OfArray(new double[numPoints * 2, 6]);
+            var B = DenseVector.OfArray(new double[numPoints * 2]);
 
             for (int i = 0; i < numPoints; i++) {
                 A[i * 2, 0] = sourcePoints[i, 0];
@@ -167,11 +199,10 @@ namespace NINA.Plugin.Livestack.Image {
                 B[i * 2 + 1] = targetPoints[i, 1];
             }
 
-            // Solve using SVD or a numerically stable method
-            var At = A.Transpose();
-            var AtA = At.Dot(A);
-            var AtB = At.Dot(B);
-            var X = AtA.Solve(AtB); // Ensure stable solving
+            // Solve for X using least squares
+            var AtA = A.TransposeThisAndMultiply(A); // Equivalent to At * A
+            var AtB = A.TransposeThisAndMultiply(B); // Equivalent to At * B
+            var X = AtA.Solve(AtB); // Solve the system AtA * X = AtB
 
             return new double[3, 3] {
                 { X[0], X[1], X[2] },
@@ -187,7 +218,7 @@ namespace NINA.Plugin.Livestack.Image {
             return new Point((float)newX, (float)newY);
         }
 
-        private static ushort GetInterpolatedPixelValue(int x, int y, ushort[] imageData, int width, int height) {
+        private static float GetInterpolatedPixelValue(int x, int y, float[] imageData, int width, int height) {
             if (x < 0 || y < 0 || x >= width || y >= height) {
                 return 0; // Out-of-bounds pixels return 0 (or any appropriate default value)
             }
@@ -199,16 +230,16 @@ namespace NINA.Plugin.Livestack.Image {
             int y1 = Math.Min(y0 + 1, height - 1);
 
             // Get pixel values for interpolation
-            ushort c00 = imageData[y0 * width + x0];
-            ushort c01 = imageData[y0 * width + x1];
-            ushort c10 = imageData[y1 * width + x0];
-            ushort c11 = imageData[y1 * width + x1];
+            float c00 = imageData[y0 * width + x0];
+            float c01 = imageData[y0 * width + x1];
+            float c10 = imageData[y1 * width + x0];
+            float c11 = imageData[y1 * width + x1];
 
             float xFraction = x - x0;
             float yFraction = y - y0;
 
             // Calculate the interpolated pixel value
-            ushort interpolatedValue = (ushort)(
+            float interpolatedValue = (float)(
                 c00 * (1 - xFraction) * (1 - yFraction) +
                 c01 * xFraction * (1 - yFraction) +
                 c10 * (1 - xFraction) * yFraction +
