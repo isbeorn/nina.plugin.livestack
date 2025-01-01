@@ -151,6 +151,36 @@ namespace NINA.Plugin.Livestack {
             }
         }
 
+        public bool SaveCalibratedFlats {
+            get {
+                return PluginSettings.GetValueBoolean(nameof(SaveCalibratedFlats), false);
+            }
+            set {
+                PluginSettings.SetValueBoolean(nameof(SaveCalibratedFlats), value);
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool SaveCalibratedLights {
+            get {
+                return PluginSettings.GetValueBoolean(nameof(SaveCalibratedLights), false);
+            }
+            set {
+                PluginSettings.SetValueBoolean(nameof(SaveCalibratedLights), value);
+                RaisePropertyChanged();
+            }
+        }
+
+        public bool SaveStackedLights {
+            get {
+                return PluginSettings.GetValueBoolean(nameof(SaveStackedLights), false);
+            }
+            set {
+                PluginSettings.SetValueBoolean(nameof(SaveStackedLights), value);
+                RaisePropertyChanged();
+            }
+        }
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         protected void RaisePropertyChanged([CallerMemberName] string propertyName = null) {

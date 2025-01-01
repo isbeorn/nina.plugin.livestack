@@ -141,12 +141,14 @@ namespace NINA.Plugin.Livestack.Instructions {
                                     var calibrationMeta = new CalibrationFrameMeta(CalibrationFrameType.FLAT, output, 0, 0, 0, filter, fitsFiles[0].Width, fitsFiles[0].Height, (float)stack.Mean());
                                     LivestackMediator.CalibrationVM.AddSessionFlatMaster(calibrationMeta);
                                 }
-                                Logger.Info($"Cleaning up flat files for filter {filter}");
-                                foreach (var file in list) {
-                                    try {
-                                        File.Delete(file);
-                                    } catch (Exception ex) {
-                                        Logger.Error(ex);
+                                if (!LivestackMediator.Plugin.SaveCalibratedFlats) {
+                                    Logger.Info($"Cleaning up flat files for filter {filter}");
+                                    foreach (var file in list) {
+                                        try {
+                                            File.Delete(file);
+                                        } catch (Exception ex) {
+                                            Logger.Error(ex);
+                                        }
                                     }
                                 }
                             } catch (Exception ex) {
@@ -189,13 +191,16 @@ namespace NINA.Plugin.Livestack.Instructions {
             if (e.Image.RawImageData.MetaData.Image.ImageType == NINA.Equipment.Model.CaptureSequence.ImageTypes.FLAT) {
                 await Task.Run(async () => {
                     try {
+                        // Only retrieve the filename part of the pattern
+                        var pattern = Path.GetFileName(profileService.ActiveProfile.ImageFileSettings.GetFilePattern(e.Image.RawImageData.MetaData.Image.ImageType));
+
                         var path = await e.Image.RawImageData.SaveToDisk(
                             new NINA.Image.FileFormat.FileSaveInfo() {
                                 FilePath = Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "temp"),
-                                FilePattern = Path.GetRandomFileName(),
+                                FilePattern = pattern,
                                 FileType = Core.Enum.FileTypeEnum.FITS
                             },
-                            default, true
+                            default, true, e.Patterns
                         );
                         await queue.EnqueueAsync(new LiveStackItem(path: path,
                                                                    target: e.Image.RawImageData.MetaData.Target.Name,
@@ -207,7 +212,9 @@ namespace NINA.Plugin.Livestack.Instructions {
                                                                    height: e.Image.RawImageData.Properties.Height,
                                                                    bitDepth: (int)profileService.ActiveProfile.CameraSettings.BitDepth,
                                                                    isBayered: e.Image.RawImageData.Properties.IsBayered,
-                                                                   analysis: e.Image.RawImageData.StarDetectionAnalysis));
+                                                                   analysis: e.Image.RawImageData.StarDetectionAnalysis,
+                                                                   metaData: e.Image.RawImageData.MetaData
+                                                                   ));
                         Interlocked.Increment(ref queueEntries);
                         RaisePropertyChanged(nameof(QueueEntries));
                     } catch (Exception) {
@@ -240,8 +247,9 @@ namespace NINA.Plugin.Livestack.Instructions {
                         if (!Directory.Exists(destinationFolder)) {
                             Directory.CreateDirectory(destinationFolder);
                         }
-                        var destinationFile = Path.Combine(destinationFolder, CoreUtil.ReplaceAllInvalidFilenameChars($"{DateTime.UtcNow.ToString("o", CultureInfo.InvariantCulture)}-{filter}.fits"));
-                        destinationFile = CoreUtil.GetUniqueFilePath(destinationFile, "{0}_{1}");
+
+                        var fileName = Path.GetFileNameWithoutExtension(item.Path) + "_c" + ".fits";
+                        var destinationFile = CoreUtil.GetUniqueFilePath(Path.Combine(destinationFolder, fileName), "{0}_{1}");
 
                         foreach (var meta in LivestackMediator.CalibrationVM.BiasLibrary) {
                             calibrationManager.RegisterBiasMaster(meta);
@@ -259,10 +267,7 @@ namespace NINA.Plugin.Livestack.Instructions {
 
                         Logger.Info($"Saving calibrated flat frame at {destinationFile}");
                         var calibratedFits = new CFitsioFITSExtendedWriter(destinationFile, theImageArray, item.Width, item.Height, CfitsioNative.COMPRESSION.NOCOMPRESS);
-                        calibratedFits.AddHeader("GAIN", item.Gain, "");
-                        calibratedFits.AddHeader("OFFSET", item.Offset, "");
-                        calibratedFits.AddHeader("EXPOSURE", item.ExposureTime, "");
-                        calibratedFits.AddHeader("FILTER", item.Filter, "");
+                        calibratedFits.PopulateHeaderCards(item.MetaData);
                         calibratedFits.AddHeader("MEDIAN", median, "");
                         calibratedFits.Close();
 

@@ -1,5 +1,14 @@
 ﻿# Livestack
 
+## 1.0.0.4
+- Light frames are now calibrated as 32-bit floating point images
+- New options:
+    - **Save calibrated Flats**: When enabled the calibrated Flat frames won't get deleted
+    - **Save calibrated Lights**: When enabled the calibrated Light frames will get saved to disk.  
+        *Keep in mind that this will increase the time to process a frame.*
+    - **Save stacked Lights**: When enabled the stacked frames will get saved to disk including the color combination.  
+        *Keep in mind that this will increase the time to process a frame.*
+
 ## 1.0.0.3
 - Calibration masters that are not saved in 32-bit floating point format are now read correctly
 

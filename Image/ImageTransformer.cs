@@ -293,10 +293,10 @@ namespace NINA.Plugin.Livestack.Image {
             int y1 = Math.Min(y0 + 1, height - 1);
 
             // Get pixel values for interpolation
-            ushort c00 = imageData[y0 * width + x0];
-            ushort c01 = imageData[y0 * width + x1];
-            ushort c10 = imageData[y1 * width + x0];
-            ushort c11 = imageData[y1 * width + x1];
+            float c00 = imageData[y0 * width + x0] / (float)ushort.MaxValue;
+            float c01 = imageData[y0 * width + x1] / (float)ushort.MaxValue;
+            float c10 = imageData[y1 * width + x0] / (float)ushort.MaxValue;
+            float c11 = imageData[y1 * width + x1] / (float)ushort.MaxValue;
 
             float xFraction = x - x0;
             float yFraction = y - y0;

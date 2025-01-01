@@ -234,13 +234,17 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                             render = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, default, default);
                             starDetectionAnalysis = render.RawImageData.StarDetectionAnalysis;
                         }
+
+                        // Only retrieve the filename part of the pattern
+                        var pattern = Path.GetFileName(profileService.ActiveProfile.ImageFileSettings.GetFilePattern(e.Image.RawImageData.MetaData.Image.ImageType));
+
                         var path = await e.Image.RawImageData.SaveToDisk(
                             new NINA.Image.FileFormat.FileSaveInfo() {
                                 FilePath = Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "temp"),
-                                FilePattern = Path.GetRandomFileName(),
+                                FilePattern = pattern,
                                 FileType = Core.Enum.FileTypeEnum.FITS
                             },
-                            default, true
+                            default, true, e.Patterns
                         );
                         await queue.EnqueueAsync(new LiveStackItem(path: path,
                                                                    target: e.Image.RawImageData.MetaData.Target.Name,
@@ -252,7 +256,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                                                                    height: e.Image.RawImageData.Properties.Height,
                                                                    bitDepth: (int)profileService.ActiveProfile.CameraSettings.BitDepth,
                                                                    isBayered: e.Image.RawImageData.Properties.IsBayered,
-                                                                   analysis: starDetectionAnalysis));
+                                                                   analysis: starDetectionAnalysis,
+                                                                   metaData: e.Image.RawImageData.MetaData));
                         Interlocked.Increment(ref queueEntries);
                         RaisePropertyChanged(nameof(QueueEntries));
                     } catch (Exception ex) {
@@ -313,6 +318,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
             StatusUpdate("Rendering stack", item);
             await tab.Refresh(token);
+            if (LivestackMediator.Plugin.SaveStackedLights) {
+                StatusUpdate("Saving stack", item);
+                tab.SaveToDisk();
+            }
         }
 
         private async Task StackOSC(float[] theImageArray, LiveStackItem item, LiveStackTab redTab, CancellationToken token) {
@@ -396,6 +405,12 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 colorTab = new ColorCombinationTab(profileService, redTab, greenTab, blueTab);
                 Tabs.Add(colorTab);
             }
+            if (LivestackMediator.Plugin.SaveStackedLights) {
+                StatusUpdate("Saving stacks", item);
+                redTab.SaveToDisk();
+                greenTab.SaveToDisk();
+                blueTab.SaveToDisk();
+            }
         }
 
         private async Task StackItem(LiveStackItem item, CancellationToken token) {
@@ -410,6 +425,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
                 var calibratedFrame = CalibrateFrame(item, calibrationManager);
 
+                SaveCalibratedFrameIfNeeded(calibratedFrame, item);
+
                 RemoveHotpixelsIfNeeded(calibratedFrame, item);
 
                 if (item.IsBayered) {
@@ -422,6 +439,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 if (colorTab != null) {
                     StatusUpdate("Refreshing color combined stack", item);
                     await colorTab.Refresh(token);
+
+                    if (LivestackMediator.Plugin.SaveStackedLights) {
+                        StatusUpdate("Saving color combined stack", item);
+                        colorTab.SaveToDisk();
+                    }
                 }
             } finally {
                 tab.Locked = false;
@@ -435,6 +457,23 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 theImageArray = calibrationManager.ApplyLightFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered);
             }
             return theImageArray;
+        }
+
+        private void SaveCalibratedFrameIfNeeded(float[] theImageArray, LiveStackItem item) {
+            if (LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.SaveCalibratedLights), true)) {
+                var fileName = Path.GetFileNameWithoutExtension(item.Path) + "_c" + ".fits";
+
+                var destinationFolder = Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "calibrated", "light", item.Target, item.Filter);
+                if (!Directory.Exists(destinationFolder)) {
+                    Directory.CreateDirectory(destinationFolder);
+                }
+                var destinationFile = CoreUtil.GetUniqueFilePath(Path.Combine(destinationFolder, fileName), "{0}_{1}");
+
+                StatusUpdate($"Saving calibrated light frame at {destinationFile}", item);
+                var writer = new CFitsioFITSExtendedWriter(destinationFile, theImageArray, item.Width, item.Height);
+                writer.PopulateHeaderCards(item.MetaData);
+                writer.Close();
+            }
         }
 
         private void RemoveHotpixelsIfNeeded(float[] theImageArray, LiveStackItem item) {

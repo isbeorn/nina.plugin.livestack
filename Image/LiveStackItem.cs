@@ -1,4 +1,5 @@
 ﻿using NINA.Core.Enum;
+using NINA.Core.Utility;
 using NINA.Image.ImageAnalysis;
 using NINA.Image.ImageData;
 using NINA.Image.Interfaces;
@@ -20,16 +21,18 @@ namespace NINA.Plugin.Livestack.Image {
                              int height,
                              int bitDepth,
                              bool isBayered,
-                             IStarDetectionAnalysis analysis) {
+                             IStarDetectionAnalysis analysis,
+                             ImageMetaData metaData) {
             Path = path;
-            Filter = filter;
+            Filter = CoreUtil.ReplaceAllInvalidFilenameChars(filter);
             ExposureTime = exposureTime;
             Gain = gain;
             Offset = offset;
-            Target = target;
+            Target = CoreUtil.ReplaceAllInvalidFilenameChars(target);
             Width = width;
             Height = height;
             IsBayered = isBayered;
+            MetaData = metaData;
             HFR = analysis.HFR;
             StarList = analysis.StarList.Select(star => new DetectedStar {
                 HFR = star.HFR,
@@ -51,6 +54,7 @@ namespace NINA.Plugin.Livestack.Image {
         public int Width { get; }
         public int Height { get; }
         public bool IsBayered { get; }
+        public ImageMetaData MetaData { get; }
         public double HFR { get; }
 
         public List<DetectedStar> StarList { get; }

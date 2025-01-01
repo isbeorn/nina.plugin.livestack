@@ -52,10 +52,10 @@ namespace NINA.Plugin.Livestack {
             var flatLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(LivestackMediator.PluginSettings.GetValueString(nameof(FlatLibrary), "").FromStringToList<CalibrationFrameMeta>());
             foreach (var item in flatLibrary) {
                 if (!File.Exists(item.Path)) {
-                    Logger.Warning($"FLAT master not found: {item.Path}");
+                    Logger.Warning($"Flat master not found: {item.Path}");
                     flatLibrary.Remove(item);
                 } else if (double.IsNaN(item.Mean)) {
-                    Logger.Warning($"FLAT master meta info does not contain calculated mean value: {item.Path}");
+                    Logger.Warning($"Flat master meta info does not contain calculated mean value: {item.Path}");
                     flatLibrary.Remove(item);
                 }
             }

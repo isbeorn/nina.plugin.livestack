@@ -61,15 +61,15 @@ Before using this plugin, ensure you meet the following requirements:
 + **PC Requirements**: Ensure your system has sufficient memory to handle live stacking.
 + **Working Directory**: Set a folder for storing calibration files, temporary files, and live stack files.
 + **Plugin Settings**: Adjust additional settings on the plugin page according to your preferences.
-+ **Master Calibration Files**: (Optional) Add BIAS, DARK, or FLAT master files for calibration.
++ **Master Calibration Files**: (Optional) Add Bias, Dark, or Flat master files for calibration.
 
 ## Sequencer Instructions
 
 + **Stack Flats**
-  This instruction works in conjunction with your FLAT frame captures:
-  + Place this instruction within a set of FLAT frame capture instructions, positioned after the last FLAT frame capture.
-  + As FLAT frames are captured, the instruction automatically gathers and calibrates them in the background.
-  + Once executed, the instruction will stack all the FLAT frames that have been gathered and save the result.
+  This instruction works in conjunction with your Flat frame captures:
+  + Place this instruction within a set of Flat frame capture instructions, positioned after the last Flat frame capture.
+  + As Flat frames are captured, the instruction automatically gathers and calibrates them in the background.
+  + Once executed, the instruction will stack all the Flat frames that have been gathered and save the result.
   + The stacked result is then automatically added to the session library within the live stack panel.
 
 + **Start Live Stack**
@@ -84,7 +84,7 @@ Before using this plugin, ensure you meet the following requirements:
 The **Live Stack** panel includes several useful features:
 
 + **Session Flat Master Files**:
-  You can manually add individual session FLAT master files. Alternatively, the *Stack Flats* instruction can automatically populate this list.
+  You can manually add individual session Flat master files. Alternatively, the *Stack Flats* instruction can automatically populate this list.
 
 + **Multi-Session Flat Masters**:
   These are not displayed in the panel but will be used if configured in the plugin settings page.

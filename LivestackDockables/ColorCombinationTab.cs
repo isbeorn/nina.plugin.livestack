@@ -185,5 +185,23 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
             return ImageTransformer.ApplyAffineTransformation(target.Stack, target.Properties.Width, target.Properties.Height, affineTransformationMatrix, flipped);
         }
+
+        private string GetStackFilePath() {
+            var destinationFolder = Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "stacks");
+            if (!Directory.Exists(destinationFolder)) { Directory.CreateDirectory(destinationFolder); }
+
+            var destinationFile = Path.Combine(destinationFolder, CoreUtil.ReplaceAllInvalidFilenameChars($"{Target}-{Filter}.png"));
+            return destinationFile;
+        }
+
+        public void SaveToDisk() {
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(StackImage));
+
+            // Save to disk
+            using (var stream = new FileStream(GetStackFilePath(), FileMode.Create, FileAccess.Write)) {
+                encoder.Save(stream);
+            }
+        }
     }
 }

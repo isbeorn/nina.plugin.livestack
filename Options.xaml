@@ -76,7 +76,7 @@
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" Text="Use Bias for LIGHTs" />
+                <TextBlock VerticalAlignment="Center" Text="Use Bias for Lights" />
                 <CheckBox
                     Grid.Column="1"
                     Margin="5,0,0,0"
@@ -95,6 +95,43 @@
                     HorizontalAlignment="Left"
                     IsChecked="{Binding HotpixelRemoval, Mode=TwoWay}" />
             </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Save calibrated Flats?" />
+                <CheckBox
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    IsChecked="{Binding SaveCalibratedFlats, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Save calibrated Lights?" />
+                <CheckBox
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    IsChecked="{Binding SaveCalibratedLights, Mode=TwoWay}" />
+            </Grid>
+            <Grid Margin="0,5,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
+                    <ColumnDefinition />
+                </Grid.ColumnDefinitions>
+                <TextBlock VerticalAlignment="Center" Text="Save stacked Lights?" />
+                <CheckBox
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    HorizontalAlignment="Left"
+                    IsChecked="{Binding SaveStackedLights, Mode=TwoWay}" />
+            </Grid>
+
             <Grid Margin="0,5,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
