@@ -351,7 +351,6 @@ namespace NINA.Plugin.Livestack.Image {
             Rectangle rect = new Rectangle(0, 0, colorBitmap.Width, colorBitmap.Height);
             BitmapData bmpData = colorBitmap.LockBits(rect, ImageLockMode.ReadWrite, colorBitmap.PixelFormat);
 
-            int bytesPerPixel = 6; // 48 bits = 6 bytes (16 bits per channel)
             int stride = bmpData.Stride;
             unsafe {
                 byte* ptr = (byte*)bmpData.Scan0;
@@ -370,10 +369,8 @@ namespace NINA.Plugin.Livestack.Image {
                         // Compute average using bit-shifting
                         ushort m = (ushort)((red + blue) >> 1);
 
-                        // Write back the values
-                        pixel[0] = blue;
+                        // Write back the value
                         pixel[1] = (ushort)(green * (1 - amount) + Math.Min(green, m) * amount);
-                        pixel[2] = red;
                     }
                 }
             }
