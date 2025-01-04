@@ -126,7 +126,7 @@
                     <ColumnDefinition Width="Auto" SharedSizeGroup="Livestack_Label" />
                     <ColumnDefinition />
                 </Grid.ColumnDefinitions>
-                <TextBlock VerticalAlignment="Center" Text="Save stacked Lights?" />
+                <TextBlock VerticalAlignment="Center" Text="Autosave stacked Lights?" />
                 <CheckBox
                     Grid.Column="1"
                     Margin="5,0,0,0"
