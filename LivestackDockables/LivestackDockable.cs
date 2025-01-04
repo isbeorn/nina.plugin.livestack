@@ -287,7 +287,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             if (tab == null) {
                 var stars = ImageTransformer.GetStars(item.StarList, item.Width, item.Height);
                 if (item.IsBayered) { stars = null; }
-                var bag = new LiveStackBag(target, filter, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
+                var bag = new LiveStackBag(target, filter, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), item.MetaData, stars);
                 tab = new LiveStackTab(profileService, bag);
                 Tabs.Add(tab);
                 return tab as LiveStackTab;
@@ -375,7 +375,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             StatusUpdate("Aligning frame - green channel", item);
             var greenTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.GREEN_OSC && x.Target == item.Target) as LiveStackTab;
             if (greenTab == null) {
-                var bag = new LiveStackBag(item.Target, LiveStackBag.GREEN_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
+                var bag = new LiveStackBag(item.Target, LiveStackBag.GREEN_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), item.MetaData, stars);
                 bag.Add(debayeredImage.Data.Green.ToFloatArray());
                 greenTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(greenTab);
@@ -387,7 +387,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             StatusUpdate("Aligning frame - blue channel", item);
             var blueTab = Tabs.FirstOrDefault(x => x is LiveStackTab && x.Filter == LiveStackBag.BLUE_OSC && x.Target == item.Target) as LiveStackTab;
             if (blueTab == null) {
-                var bag = new LiveStackBag(item.Target, LiveStackBag.BLUE_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), stars);
+                var bag = new LiveStackBag(item.Target, LiveStackBag.BLUE_OSC, new ImageProperties(item.Width, item.Height, (int)profileService.ActiveProfile.CameraSettings.BitDepth, item.IsBayered, item.Gain, item.Offset), item.MetaData, stars);
                 bag.Add(debayeredImage.Data.Blue.ToFloatArray());
                 blueTab = new LiveStackTab(profileService, bag);
                 Tabs.Add(blueTab);
@@ -440,7 +440,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
                     if (LivestackMediator.Plugin.SaveStackedLights) {
                         StatusUpdate("Saving color combined stack", item);
-                        colorTab.SaveToDisk();
+                        colorTab.AutoSaveToDisk();
                     }
                 }
             } finally {

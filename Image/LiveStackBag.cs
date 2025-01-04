@@ -21,16 +21,17 @@ namespace NINA.Plugin.Livestack.Image {
         public static readonly string GREEN_OSC = "G_OSC";
         public static readonly string BLUE_OSC = "B_OSC";
 
-        public LiveStackBag(string target, string filter, ImageProperties properties, List<Accord.Point> referenceStars) {
+        public LiveStackBag(string target, string filter, ImageProperties properties, ImageMetaData metaData, List<Accord.Point> referenceStars) {
             Filter = filter;
             Target = target;
             Properties = properties;
+            MetaData = metaData;
             ReferenceImageStars = referenceStars;
             ImageCount = 0;
         }
 
         public ImageProperties Properties { get; private set; }
-
+        public ImageMetaData MetaData { get; }
         public List<Accord.Point> ReferenceImageStars { get; private set; }
         public float[] Stack { get; private set; }
 
@@ -63,7 +64,7 @@ namespace NINA.Plugin.Livestack.Image {
             return destinationFile;
         }
 
-        public void SaveToDisk() {
+        public void AutoSaveToDisk() {
             var destinationFile = GetStackFilePath();
             var tempFile = Path.Combine(destinationFile + ".tmp");
 
@@ -71,14 +72,19 @@ namespace NINA.Plugin.Livestack.Image {
                 File.Delete(tempFile);
             }
 
-            var stackFits = new CFitsioFITSExtendedWriter(tempFile, Stack, Properties.Width, Properties.Height, CfitsioNative.COMPRESSION.NOCOMPRESS);
-            stackFits.AddHeader("IMGCOUNT", ImageCount, "");
-            stackFits.Close();
+            SaveToDisk(tempFile);
 
             if (File.Exists(destinationFile)) {
                 File.Delete(destinationFile);
             }
             File.Move(tempFile, destinationFile);
+        }
+
+        public void SaveToDisk(string path) {
+            var stackFits = new CFitsioFITSExtendedWriter(path, Stack, Properties.Width, Properties.Height, CfitsioNative.COMPRESSION.NOCOMPRESS);
+            stackFits.PopulateHeaderCards(MetaData);
+            stackFits.AddHeader("IMGCOUNT", ImageCount, "");
+            stackFits.Close();
         }
     }
 }

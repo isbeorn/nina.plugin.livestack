@@ -364,6 +364,18 @@
                                                 Stretch="Uniform"
                                                 UseLayoutRounding="True" />
                                         </Button>
+                                        <Button
+                                            Width="35"
+                                            Margin="2.5"
+                                            Command="{Binding SaveWithDialogCommand}">
+                                            <Path
+                                                Margin="5"
+                                                Data="{StaticResource SaveSVG}"
+                                                Fill="{StaticResource ButtonForegroundDisabledBrush}"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                Stretch="Uniform"
+                                                UseLayoutRounding="True" />
+                                        </Button>
                                         <Grid HorizontalAlignment="Right" VerticalAlignment="Center">
                                             <local:PopupButton
                                                 Margin="2.5"
@@ -502,6 +514,18 @@
                                             <Path
                                                 Margin="5"
                                                 Data="{StaticResource FlipHorizontalSVG}"
+                                                Fill="{StaticResource ButtonForegroundDisabledBrush}"
+                                                RenderTransformOrigin="0.5,0.5"
+                                                Stretch="Uniform"
+                                                UseLayoutRounding="True" />
+                                        </Button>
+                                        <Button
+                                            Width="35"
+                                            Margin="2.5"
+                                            Command="{Binding SaveWithDialogCommand}">
+                                            <Path
+                                                Margin="5"
+                                                Data="{StaticResource SaveSVG}"
                                                 Fill="{StaticResource ButtonForegroundDisabledBrush}"
                                                 RenderTransformOrigin="0.5,0.5"
                                                 Stretch="Uniform"

@@ -1,5 +1,9 @@
 ﻿# Livestack
 
+## 1.0.0.7
+- Added separate save options on the stack tabs
+- Metadata of first frame in stack will now also be put into the keywords of the save stack
+
 ## 1.0.0.6
 - Fix plugin failure to load when one of the library files was deleted
 - Add Quality Gate for RMSAbsolute threshold

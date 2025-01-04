@@ -1,5 +1,6 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using Microsoft.Win32;
 using NINA.Astrometry;
 using NINA.Core.Utility;
 using NINA.Image.ImageAnalysis;
@@ -111,6 +112,19 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             ImageFlipValue *= -1;
         }
 
+        [RelayCommand]
+        public async Task SaveWithDialog() {
+            var dialog = new SaveFileDialog();
+            dialog.Title = "Save stack";
+            dialog.FileName = $"{Target}-{Filter}.fits";
+            dialog.DefaultExt = ".fits";
+            dialog.Filter = "Flexible Image Transport System|*.fits;*.fit;";
+
+            if (dialog.ShowDialog() == true) {
+                await Task.Run(() => bag.SaveToDisk(dialog.FileName));
+            }
+        }
+
         public void AddImage(float[] data) {
             bag.Add(data);
         }
@@ -120,7 +134,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         public void SaveToDisk() {
-            bag.SaveToDisk();
+            bag.AutoSaveToDisk();
         }
     }
 }

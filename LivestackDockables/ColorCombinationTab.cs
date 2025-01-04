@@ -24,6 +24,7 @@ using NINA.Core.Utility;
 using System.Diagnostics;
 using CommunityToolkit.Mvvm.Input;
 using NINA.Astrometry;
+using Microsoft.Win32;
 
 namespace NINA.Plugin.Livestack.LivestackDockables {
 
@@ -174,6 +175,19 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             ImageFlipValue *= -1;
         }
 
+        [RelayCommand]
+        public async Task SaveWithDialog() {
+            var dialog = new SaveFileDialog();
+            dialog.Title = "Save stack";
+            dialog.FileName = $"{Target}-{Filter}.png";
+            dialog.DefaultExt = ".png";
+            dialog.Filter = "Portable Network Graphics|*.png;";
+
+            if (dialog.ShowDialog() == true) {
+                await Task.Run(() => SaveToDisk(dialog.FileName));
+            }
+        }
+
         private float[] AlignTab(LiveStackTab reference, LiveStackTab target) {
             var stars = target.ReferenceStars;
             var affineTransformationMatrix = ImageTransformer.ComputeAffineTransformation(stars, reference.ReferenceStars);
@@ -194,12 +208,15 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             return destinationFile;
         }
 
-        public void SaveToDisk() {
+        public void AutoSaveToDisk() {
+            SaveToDisk(GetStackFilePath());
+        }
+
+        private void SaveToDisk(string path) {
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(StackImage));
 
-            // Save to disk
-            using (var stream = new FileStream(GetStackFilePath(), FileMode.Create, FileAccess.Write)) {
+            using (var stream = new FileStream(path, FileMode.Create, FileAccess.Write)) {
                 encoder.Save(stream);
             }
         }
