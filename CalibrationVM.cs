@@ -14,6 +14,7 @@ using System.IO;
 using CommunityToolkit.Mvvm.ComponentModel;
 using NINA.WPF.Base.ViewModel;
 using MathNet.Numerics.Statistics;
+using System.Linq;
 
 namespace NINA.Plugin.Livestack {
 
@@ -34,7 +35,7 @@ namespace NINA.Plugin.Livestack {
 
         private void InitializeLibraries() {
             var darkLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(LivestackMediator.PluginSettings.GetValueString(nameof(DarkLibrary), "").FromStringToList<CalibrationFrameMeta>());
-            foreach (var item in darkLibrary) {
+            foreach (var item in darkLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"DARK master not found: {item.Path}");
                     darkLibrary.Remove(item);
@@ -42,7 +43,7 @@ namespace NINA.Plugin.Livestack {
             }
             DarkLibrary = darkLibrary;
             var biasLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(LivestackMediator.PluginSettings.GetValueString(nameof(BiasLibrary), "").FromStringToList<CalibrationFrameMeta>());
-            foreach (var item in biasLibrary) {
+            foreach (var item in biasLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"BIAS master not found: {item.Path}");
                     biasLibrary.Remove(item);
@@ -50,7 +51,7 @@ namespace NINA.Plugin.Livestack {
             }
             BiasLibrary = biasLibrary;
             var flatLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(LivestackMediator.PluginSettings.GetValueString(nameof(FlatLibrary), "").FromStringToList<CalibrationFrameMeta>());
-            foreach (var item in flatLibrary) {
+            foreach (var item in flatLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"Flat master not found: {item.Path}");
                     flatLibrary.Remove(item);

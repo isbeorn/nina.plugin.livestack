@@ -1,5 +1,9 @@
 ﻿# Livestack
 
+## 1.0.0.6
+- Fix plugin failure to load when one of the library files was deleted
+- Add Quality Gate for RMSAbsolute threshold
+
 ## 1.0.0.5
 - Small bugfix to properly dispose file access to calibration files
 
