@@ -20,10 +20,10 @@ namespace NINA.Plugin.Livestack {
 
     public partial class CalibrationVM : BaseVM {
 
-        public CalibrationVM(IProfileService profileService, IImageDataFactory imageDataFactory, IWindowServiceFactory windowServiceFactory) : base(profileService) {
+        public CalibrationVM(IProfileService profileService, IImageDataFactory imageDataFactory, IWindowServiceFactory windowServiceFactory, IPluginOptionsAccessor pluginSettings) : base(profileService) {
             this.imageDataFactory = imageDataFactory;
             this.windowServiceFactory = windowServiceFactory;
-
+            this.pluginSettings = pluginSettings;
             InitializeLibraries();
 
             profileService.ProfileChanged += ProfileService_ProfileChanged;
@@ -34,7 +34,7 @@ namespace NINA.Plugin.Livestack {
         }
 
         private void InitializeLibraries() {
-            var darkLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(LivestackMediator.PluginSettings.GetValueString(nameof(DarkLibrary), "").FromStringToList<CalibrationFrameMeta>());
+            var darkLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(pluginSettings.GetValueString(nameof(DarkLibrary), "").FromStringToList<CalibrationFrameMeta>());
             foreach (var item in darkLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"DARK master not found: {item.Path}");
@@ -42,7 +42,7 @@ namespace NINA.Plugin.Livestack {
                 }
             }
             DarkLibrary = darkLibrary;
-            var biasLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(LivestackMediator.PluginSettings.GetValueString(nameof(BiasLibrary), "").FromStringToList<CalibrationFrameMeta>());
+            var biasLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(pluginSettings.GetValueString(nameof(BiasLibrary), "").FromStringToList<CalibrationFrameMeta>());
             foreach (var item in biasLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"BIAS master not found: {item.Path}");
@@ -50,7 +50,7 @@ namespace NINA.Plugin.Livestack {
                 }
             }
             BiasLibrary = biasLibrary;
-            var flatLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(LivestackMediator.PluginSettings.GetValueString(nameof(FlatLibrary), "").FromStringToList<CalibrationFrameMeta>());
+            var flatLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(pluginSettings.GetValueString(nameof(FlatLibrary), "").FromStringToList<CalibrationFrameMeta>());
             foreach (var item in flatLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"Flat master not found: {item.Path}");
@@ -78,23 +78,24 @@ namespace NINA.Plugin.Livestack {
 
         private readonly IImageDataFactory imageDataFactory;
         private readonly IWindowServiceFactory windowServiceFactory;
+        private readonly IPluginOptionsAccessor pluginSettings;
 
         [RelayCommand]
         private void DeleteBiasMaster(CalibrationFrameMeta c) {
             BiasLibrary.Remove(c);
-            LivestackMediator.PluginSettings.SetValueString(nameof(BiasLibrary), BiasLibrary.FromListToString());
+            pluginSettings.SetValueString(nameof(BiasLibrary), BiasLibrary.FromListToString());
         }
 
         [RelayCommand]
         private void DeleteDarkMaster(CalibrationFrameMeta c) {
             DarkLibrary.Remove(c);
-            LivestackMediator.PluginSettings.SetValueString(nameof(DarkLibrary), DarkLibrary.FromListToString());
+            pluginSettings.SetValueString(nameof(DarkLibrary), DarkLibrary.FromListToString());
         }
 
         [RelayCommand]
         private void DeleteFlatMaster(CalibrationFrameMeta c) {
             FlatLibrary.Remove(c);
-            LivestackMediator.PluginSettings.SetValueString(nameof(FlatLibrary), FlatLibrary.FromListToString());
+            pluginSettings.SetValueString(nameof(FlatLibrary), FlatLibrary.FromListToString());
         }
 
         [RelayCommand]
@@ -105,13 +106,13 @@ namespace NINA.Plugin.Livestack {
         public void AddCalibrationFrame(CalibrationFrameMeta frame) {
             if (frame.Type == CalibrationFrameType.BIAS) {
                 BiasLibrary.Add(frame);
-                LivestackMediator.PluginSettings.SetValueString(nameof(BiasLibrary), BiasLibrary.FromListToString());
+                pluginSettings.SetValueString(nameof(BiasLibrary), BiasLibrary.FromListToString());
             } else if (frame.Type == CalibrationFrameType.DARK) {
                 DarkLibrary.Add(frame);
-                LivestackMediator.PluginSettings.SetValueString(nameof(DarkLibrary), DarkLibrary.FromListToString());
+                pluginSettings.SetValueString(nameof(DarkLibrary), DarkLibrary.FromListToString());
             } else if (frame.Type == CalibrationFrameType.FLAT) {
                 FlatLibrary.Add(frame);
-                LivestackMediator.PluginSettings.SetValueString(nameof(FlatLibrary), FlatLibrary.FromListToString());
+                pluginSettings.SetValueString(nameof(FlatLibrary), FlatLibrary.FromListToString());
             }
         }
 
@@ -248,13 +249,13 @@ namespace NINA.Plugin.Livestack {
                     if (string.IsNullOrEmpty(frame.Filter)) { frame.Filter = LiveStackBag.NOFILTER; }
                     if (frame.Type == CalibrationFrameType.BIAS) {
                         BiasLibrary.Add(frame);
-                        LivestackMediator.PluginSettings.SetValueString(nameof(BiasLibrary), BiasLibrary.FromListToString());
+                        pluginSettings.SetValueString(nameof(BiasLibrary), BiasLibrary.FromListToString());
                     } else if (frame.Type == CalibrationFrameType.DARK) {
                         DarkLibrary.Add(frame);
-                        LivestackMediator.PluginSettings.SetValueString(nameof(DarkLibrary), DarkLibrary.FromListToString());
+                        pluginSettings.SetValueString(nameof(DarkLibrary), DarkLibrary.FromListToString());
                     } else if (frame.Type == CalibrationFrameType.FLAT) {
                         FlatLibrary.Add(frame);
-                        LivestackMediator.PluginSettings.SetValueString(nameof(FlatLibrary), FlatLibrary.FromListToString());
+                        pluginSettings.SetValueString(nameof(FlatLibrary), FlatLibrary.FromListToString());
                     }
                 }
             }

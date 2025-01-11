@@ -460,7 +460,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private void SaveCalibratedFrameIfNeeded(float[] theImageArray, LiveStackItem item) {
-            if (LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.SaveCalibratedLights), true)) {
+            if (LivestackMediator.Plugin.SaveCalibratedLights) {
                 var fileName = Path.GetFileNameWithoutExtension(item.Path) + "_c" + ".fits";
 
                 var destinationFolder = Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "calibrated", "light", item.Target, item.Filter);
@@ -477,7 +477,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private void RemoveHotpixelsIfNeeded(float[] theImageArray, LiveStackItem item) {
-            if (LivestackMediator.PluginSettings.GetValueBoolean(nameof(Livestack.HotpixelRemoval), true)) {
+            if (LivestackMediator.Plugin.HotpixelRemoval) {
                 StatusUpdate("Removing hot pixels in frame", item);
                 ImageMath.RemoveHotPixelOutliers(theImageArray, item.Width, item.Height);
             }

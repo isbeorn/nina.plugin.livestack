@@ -54,7 +54,7 @@ namespace NINA.Plugin.Livestack {
 
             LivestackMediator.RegisterPlugin(this);
             LivestackMediator.RegisterSettings(PluginSettings);
-            LivestackMediator.RegisterCalibrationVM(new CalibrationVM(profileService, imageDataFactory, windowServiceFactory));
+            LivestackMediator.RegisterCalibrationVM(new CalibrationVM(profileService, imageDataFactory, windowServiceFactory, PluginSettings));
             OpenWorkingFolderDiagCommand = new GalaSoft.MvvmLight.Command.RelayCommand(OpenWorkingFolderDiag);
         }
 
