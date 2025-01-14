@@ -10,6 +10,7 @@ using NINA.Image.ImageData;
 using System.Linq;
 using NINA.Profile;
 using System;
+using System.Text;
 
 namespace NINA.Plugin.Livestack.Image {
 
@@ -72,6 +73,15 @@ namespace NINA.Plugin.Livestack.Image {
             CalibrationFrameMeta meta = null;
             if (BiasLibrary?.Count > 0) {
                 meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.Width == width && x.Height == height);
+                if (meta == null) {
+                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height);
+                }
+                if (meta == null) {
+                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height);
+                }
+                if (meta == null) {
+                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
+                }
             }
             if (meta == null) {
                 return null;
@@ -89,6 +99,15 @@ namespace NINA.Plugin.Livestack.Image {
             CalibrationFrameMeta meta = null;
             if (DarkLibrary?.Count > 0) {
                 meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
+                if (meta == null) {
+                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height);
+                }
+                if (meta == null) {
+                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height);
+                }
+                if (meta == null) {
+                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
+                }
             }
             if (meta == null) {
                 return null;
@@ -131,6 +150,19 @@ namespace NINA.Plugin.Livestack.Image {
             }
             var dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
             var flat = GetFlatMaster(width, height, inFilter, isBayered);
+
+            var sb = new StringBuilder();
+            sb.Append($"Calibrating \"{image.FilePath}\";");
+            if (bias != null) {
+                sb.Append($" using bias \"{bias.Meta.Path}\";");
+            }
+            if (dark != null) {
+                sb.Append($" using dark \"{dark.Meta.Path}\";");
+            }
+            if (flat != null) {
+                sb.Append($" using flat \"{flat.Meta.Path}\";");
+            }
+            Logger.Info(sb.ToString());
 
             float[] imageArray = new float[width * height];
             float flatCorrected = 1f;
@@ -180,6 +212,16 @@ namespace NINA.Plugin.Livestack.Image {
             if (bias == null) {
                 dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
             }
+
+            var sb = new StringBuilder();
+            sb.Append($"Calibrating \"{image.FilePath}\";");
+            if (bias != null) {
+                sb.Append($" using bias \"{bias.Meta.Path}\";");
+            }
+            if (dark != null) {
+                sb.Append($" using dark \"{dark.Meta.Path}\";");
+            }
+            Logger.Info(sb.ToString());
 
             float[] imageArray = new float[width * height];
             float[] biasRow = Array.Empty<float>();

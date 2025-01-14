@@ -64,11 +64,13 @@ namespace NINA.Plugin.Livestack {
             Width = (int)CfitsioNative.fits_read_key_long(filePtr, "NAXIS1");
             Height = (int)CfitsioNative.fits_read_key_long(filePtr, "NAXIS2");
             BitPix = (CfitsioNative.BITPIX)(int)CfitsioNative.fits_read_key_long(filePtr, "BITPIX");
+            FilePath = filePath;
         }
 
         public int Width { get; }
         public int Height { get; }
         public BITPIX BitPix { get; }
+        public string FilePath { get; }
 
         private T[] ReadPixelRow<T>(int row) {
             const int nelem = 2;

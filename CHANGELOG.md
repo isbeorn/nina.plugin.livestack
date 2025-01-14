@@ -1,5 +1,9 @@
 ﻿# Livestack
 
+## 1.0.0.8
+- Master frames now show "Ignore" instead of "-1" for gain and offset. If "Ignore" is specified the image calibration will consider these frames if no exact match for the image gain and offset is found.
+- Added an info log that shows with which calibration masters an image gets calibrated with
+
 ## 1.0.0.7
 - Added separate save options on the stack tabs
 - Metadata of first frame in stack will now also be put into the keywords of the save stack

@@ -26,6 +26,8 @@
         <PathGeometry Figures="M 20.864,17.912L 17.088,21.62L 88.2333,91.0627L 92.0093,87.3547" />
     </GeometryGroup>
 
+    <local:MinusOneToIgnoreStringConverter x:Key="MinusOneToIgnoreStringConverter" />
+
     <!--  This data template will be displayed in N.I.N.A. on the options->plugin tab with the datacontext of the TestPlugin instance  -->
     <!--  In order for this datatemplate to be picked correctly, the key has to follow the naming convention of <IPlugin.Name>_Options -->
     <!--  Furthermore the Resource Dictionary has to be exported via code behind export attributes  -->
@@ -254,14 +256,14 @@
                             <DataGridTemplateColumn Width="*" Header="Gain">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding Gain}" />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Gain, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Width="*" Header="Offset">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding Offset}" />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Offset, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -337,14 +339,14 @@
                             <DataGridTemplateColumn Width="*" Header="Gain">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding Gain}" />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Gain, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             <DataGridTemplateColumn Width="*" Header="Offset">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock VerticalAlignment="Center" Text="{Binding Offset}" />
+                                        <TextBlock VerticalAlignment="Center" Text="{Binding Offset, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -455,7 +457,7 @@
                 </ObjectDataProvider.MethodParameters>
             </ObjectDataProvider>
         </DataTemplate.Resources>
-        <StackPanel Orientation="Vertical">
+        <StackPanel Margin="5" Orientation="Vertical">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
@@ -586,7 +588,10 @@
                     Grid.Row="6"
                     Grid.Column="1"
                     Margin="5,0,0,0">
-                    <TextBox Text="{Binding Context.Gain}" />
+                    <ninactrl:HintTextBox
+                        VerticalAlignment="Center"
+                        HintText="Ignore"
+                        Text="{Binding Context.Gain, Converter={StaticResource MinusOneToEmptyStringConverter}}" />
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
                             <Style.Triggers>
@@ -614,7 +619,10 @@
                     Grid.Row="7"
                     Grid.Column="1"
                     Margin="5,0,0,0">
-                    <TextBox Text="{Binding Context.Offset}" />
+                    <ninactrl:HintTextBox
+                        VerticalAlignment="Center"
+                        HintText="Ignore"
+                        Text="{Binding Context.Offset, Converter={StaticResource MinusOneToEmptyStringConverter}}" />
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
                             <Style.Triggers>
