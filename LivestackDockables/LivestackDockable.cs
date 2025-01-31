@@ -29,15 +29,22 @@ using System.Drawing.Imaging;
 using NINA.Image.ImageData;
 using NINA.Core.Enum;
 using NINA.Equipment.Interfaces.Mediator;
+using NINA.Plugin.Interfaces;
 
 namespace NINA.Plugin.Livestack.LivestackDockables {
 
     [Export(typeof(IDockableVM))]
-    public partial class LivestackDockable : DockableVM {
+    public partial class LivestackDockable : DockableVM, ISubscriber {
         public override bool IsTool { get; } = true;
 
         [ImportingConstructor]
-        public LivestackDockable(IProfileService profileService, IApplicationStatusMediator applicationStatusMediator, IImageSaveMediator imageSaveMediator, IImageDataFactory imageDataFactory, IWindowServiceFactory windowServiceFactory, ICameraMediator cameraMediator) : base(profileService) {
+        public LivestackDockable(IProfileService profileService,
+                                 IApplicationStatusMediator applicationStatusMediator,
+                                 IImageSaveMediator imageSaveMediator,
+                                 IImageDataFactory imageDataFactory,
+                                 IWindowServiceFactory windowServiceFactory,
+                                 ICameraMediator cameraMediator,
+                                 IMessageBroker messageBroker) : base(profileService) {
             this.Title = "Live Stack";
             var dict = new ResourceDictionary();
             dict.Source = new Uri("NINA.Plugin.Livestack;component/Options.xaml", UriKind.RelativeOrAbsolute);
@@ -49,12 +56,15 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             this.imageDataFactory = imageDataFactory;
             this.windowServiceFactory = windowServiceFactory;
             this.cameraMediator = cameraMediator;
-
+            this.messageBroker = messageBroker;
             profileService.ActiveProfile.PropertyChanged += ActiveProfile_PropertyChanged;
             InitializeQualityGates();
             tabs = new AsyncObservableCollection<IStackTab>();
             IsExpanded = true;
             LivestackMediator.RegisterLivestackDockable(this);
+
+            messageBroker.Subscribe("Livestack_LivestackDockable_StartLiveStack", this);
+            messageBroker.Subscribe("Livestack_LivestackDockable_StopLiveStack", this);
         }
 
         private void ActiveProfile_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e) {
@@ -92,6 +102,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private readonly IImageDataFactory imageDataFactory;
         private readonly IWindowServiceFactory windowServiceFactory;
         private readonly ICameraMediator cameraMediator;
+        private readonly IMessageBroker messageBroker;
 
         [RelayCommand(IncludeCancelCommand = true)]
         private Task StartLiveStack(CancellationToken token) {
@@ -295,7 +306,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             return tab as LiveStackTab;
         }
 
-        private async Task StackMono(float[] theImageArray, LiveStackItem item, LiveStackTab tab, CancellationToken token) {
+        private async Task StackMono(float[] theImageArray, LiveStackItem item, LiveStackTab tab, Guid correlation, CancellationToken token) {
             float[] transformedImage;
             if (tab.StackCount == 0) {
                 transformedImage = theImageArray;
@@ -322,9 +333,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 StatusUpdate("Saving stack", item);
                 tab.SaveToDisk();
             }
+
+            _ = messageBroker.Publish(new LivestackBroadcast(new LiveStackBroadcastContent(tab.Filter, tab.Target, tab.StackImage), correlation));
         }
 
-        private async Task StackOSC(float[] theImageArray, LiveStackItem item, LiveStackTab redTab, CancellationToken token) {
+        private async Task StackOSC(float[] theImageArray, LiveStackItem item, LiveStackTab redTab, Guid correlation, CancellationToken token) {
             var meta = new ImageMetaData(); // Set bare minimum for star detection resize factor
             meta.Camera.PixelSize = profileService.ActiveProfile.CameraSettings.PixelSize;
             meta.Telescope.FocalLength = profileService.ActiveProfile.TelescopeSettings.FocalLength;
@@ -411,6 +424,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 greenTab.SaveToDisk();
                 blueTab.SaveToDisk();
             }
+
+            _ = messageBroker.Publish(new LivestackBroadcast(new LiveStackBroadcastContent(redTab.Filter, redTab.Target, redTab.StackImage), correlation));
+            _ = messageBroker.Publish(new LivestackBroadcast(new LiveStackBroadcastContent(greenTab.Filter, redTab.Target, redTab.StackImage), correlation));
+            _ = messageBroker.Publish(new LivestackBroadcast(new LiveStackBroadcastContent(blueTab.Filter, redTab.Target, redTab.StackImage), correlation));
         }
 
         private async Task StackItem(LiveStackItem item, CancellationToken token) {
@@ -427,10 +444,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
                 RemoveHotpixelsIfNeeded(calibratedFrame, item);
 
+                Guid correlation = Guid.NewGuid();
                 if (item.IsBayered) {
-                    await StackOSC(calibratedFrame, item, tab, token);
+                    await StackOSC(calibratedFrame, item, tab, correlation, token);
                 } else {
-                    await StackMono(calibratedFrame, item, tab, token);
+                    await StackMono(calibratedFrame, item, tab, correlation, token);
                 }
 
                 var colorTab = Tabs.Where(x => x is ColorCombinationTab && x.Target == tab.Target).FirstOrDefault() as ColorCombinationTab;
@@ -442,6 +460,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                         StatusUpdate("Saving color combined stack", item);
                         colorTab.AutoSaveToDisk();
                     }
+
+                    _ = messageBroker.Publish(new LivestackBroadcast(new LiveStackBroadcastContent(colorTab.Filter, colorTab.Target, colorTab.StackImage), correlation));
                 }
             } finally {
                 tab.Locked = false;
@@ -507,5 +527,60 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         public void Dispose() {
         }
+
+        public async Task OnMessageReceived(IMessage message) {
+            if (message.Topic == $"Livestack_LivestackDockable_StartLiveStack") {
+                _ = StartLiveStackCommand.ExecuteAsync(null);
+            } else if (message.Topic == $"Livestack_LivestackDockable_StopLiveStack") {
+                if (LivestackMediator.LiveStackDockable.StartLiveStackCommand.IsRunning) {
+                    LivestackMediator.LiveStackDockable.StartLiveStackCancelCommand.Execute(null);
+                }
+            } else if (message.Topic == $"Livestack_LivestackDockable_StopLiveStack") {
+                if (LivestackMediator.LiveStackDockable.StartLiveStackCommand.IsRunning) {
+                    LivestackMediator.LiveStackDockable.StartLiveStackCancelCommand.Execute(null);
+                }
+            }
+        }
+    }
+
+    public class LivestackBroadcast : IMessage {
+
+        public LivestackBroadcast(object content, Guid correlation) {
+            Content = content;
+            CorrelationId = correlation;
+        }
+
+        public Guid SenderId => Guid.Parse(LivestackMediator.Plugin.Identifier);
+
+        public string Sender => "Livestack";
+
+        public DateTimeOffset SentAt => DateTimeOffset.UtcNow;
+
+        public Guid MessageId => Guid.NewGuid();
+
+        public DateTimeOffset? Expiration => null;
+
+        public Guid? CorrelationId { get; }
+
+        public int Version => 1;
+
+        public IDictionary<string, object> CustomHeaders => new Dictionary<string, object>();
+
+        public string Topic => "Livestack_LivestackDockable_StackUpdateBroadcast";
+
+        public object Content { get; }
+    }
+
+    public class LiveStackBroadcastContent {
+
+        public LiveStackBroadcastContent(string filter, string target, BitmapSource image) {
+            Filter = filter;
+            Target = target;
+            Image = image;
+        }
+
+        public string Filter { get; }
+        public string Target { get; }
+        public BitmapSource Image { get; }
     }
 }

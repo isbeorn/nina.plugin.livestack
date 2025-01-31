@@ -1,5 +1,11 @@
 ﻿# Livestack
 
+## 1.0.0.9
+- The plugin now subscribes to the following messages in order to start and stop the live stacking from outside the plugin:
+    - Livestack_LivestackDockable_StartLiveStack
+    - Livestack_LivestackDockable_StopLiveStack
+- A broadcast on IMessageBroker will be sent with the topic "Livestack_LivestackDockable_StackUpdateBroadcast" when a stack tab gets updated.
+
 ## 1.0.0.8
 - Master frames now show "Ignore" instead of "-1" for gain and offset. If "Ignore" is specified the image calibration will consider these frames if no exact match for the image gain and offset is found.
 - Added an info log that shows with which calibration masters an image gets calibrated with
