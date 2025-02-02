@@ -1,5 +1,8 @@
 ﻿# Livestack
 
+## 1.0.1.0
+- Handle cases for calibration masters where the floating point data is not normalized to 0..1 but instead defined via DATAMIN and DATAMAX keywords
+
 ## 1.0.0.9
 - The plugin now subscribes to the following messages in order to start and stop the live stacking from outside the plugin:
     - Livestack_LivestackDockable_StartLiveStack

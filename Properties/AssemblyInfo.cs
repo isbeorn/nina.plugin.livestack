@@ -8,8 +8,8 @@ using System.Windows.Markup;
 
 // [MANDATORY] The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.0.0.9")]
-[assembly: AssemblyFileVersion("1.0.0.9")]
+[assembly: AssemblyVersion("1.0.1.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
 
 // [MANDATORY] The name of your plugin
 [assembly: AssemblyTitle("Livestack")]
@@ -25,7 +25,7 @@ using System.Windows.Markup;
 [assembly: AssemblyCopyright("Copyright © 2024 Stefan Berg")]
 
 // The minimum Version of N.I.N.A. that this plugin is compatible with
-[assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.1009")]
+[assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.1018")]
 
 // The license your plugin code is using
 [assembly: AssemblyMetadata("License", "MPL-2.0")]

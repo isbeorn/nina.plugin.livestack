@@ -64,6 +64,12 @@ namespace NINA.Plugin.Livestack {
             Width = (int)CfitsioNative.fits_read_key_long(filePtr, "NAXIS1");
             Height = (int)CfitsioNative.fits_read_key_long(filePtr, "NAXIS2");
             BitPix = (CfitsioNative.BITPIX)(int)CfitsioNative.fits_read_key_long(filePtr, "BITPIX");
+            try {
+                DataMin = CfitsioNative.fits_read_key_double(filePtr, "DATAMIN");
+            } catch { }
+            try {
+                DataMax = CfitsioNative.fits_read_key_double(filePtr, "DATAMAX");
+            } catch { }
             FilePath = filePath;
         }
 
@@ -71,6 +77,8 @@ namespace NINA.Plugin.Livestack {
         public int Height { get; }
         public BITPIX BitPix { get; }
         public string FilePath { get; }
+        public double? DataMin { get; }
+        public double? DataMax { get; }
 
         private T[] ReadPixelRow<T>(int row) {
             const int nelem = 2;
@@ -116,10 +124,10 @@ namespace NINA.Plugin.Livestack {
                 return ToFloatArray(pixels);
             } else if (BitPix == BITPIX.DOUBLE_IMG) {
                 var pixels = ReadPixelRow<double>(row);
-                return ToFloatArray(pixels);
+                return Normalize(ToFloatArray(pixels));
             } else if (BitPix == BITPIX.FLOAT_IMG) {
                 var pixels = ReadPixelRow<float>(row);
-                return pixels;
+                return Normalize(pixels);
             } else if (BitPix == BITPIX.LONGLONG_IMG) {
                 var pixels = ReadPixelRow<long>(row);
                 return ToFloatArray(pixels);
@@ -132,6 +140,16 @@ namespace NINA.Plugin.Livestack {
             } else {
                 throw new ArgumentException($"Invalid BITPIX {BitPix}");
             }
+        }
+
+        private float[] Normalize(float[] data) {
+            if (DataMin != null && DataMax != null && DataMin < DataMax) {
+                var range = DataMax.Value - DataMin.Value;
+                for (int i = 0; i < data.Length; i++) {
+                    data[i] = (float)((data[i] - DataMin.Value) / range);
+                }
+            }
+            return data;
         }
 
         public ushort[] ReadPixelRowAsUShort(int row) {
@@ -166,10 +184,10 @@ namespace NINA.Plugin.Livestack {
                 return ToFloatArray(pixels);
             } else if (BitPix == BITPIX.DOUBLE_IMG) {
                 var pixels = read_pixels<double>(filePtr, naxes, nelem);
-                return ToFloatArray(pixels);
+                return Normalize(ToFloatArray(pixels));
             } else if (BitPix == BITPIX.FLOAT_IMG) {
                 var pixels = read_pixels<float>(filePtr, naxes, nelem);
-                return pixels;
+                return Normalize(pixels);
             } else if (BitPix == BITPIX.LONGLONG_IMG) {
                 var pixels = read_pixels<long>(filePtr, naxes, nelem);
                 return ToFloatArray(pixels);

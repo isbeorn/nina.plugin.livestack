@@ -12,7 +12,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />
-    <PackageReference Include="NINA.Plugin" Version="3.2.0.1009-nightly" />
+    <PackageReference Include="NINA.Plugin" Version="3.2.0.1018-nightly" />
   </ItemGroup>
   <PropertyGroup>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
