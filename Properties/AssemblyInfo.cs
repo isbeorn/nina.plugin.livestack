@@ -8,8 +8,8 @@ using System.Windows.Markup;
 
 // [MANDATORY] The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.0.1.1")]
+[assembly: AssemblyFileVersion("1.0.1.1")]
 
 // [MANDATORY] The name of your plugin
 [assembly: AssemblyTitle("Livestack")]
@@ -22,7 +22,7 @@ using System.Windows.Markup;
 [assembly: AssemblyCompany("Stefan Berg @isbeorn")]
 // The product name that this plugin is part of
 [assembly: AssemblyProduct("Livestack")]
-[assembly: AssemblyCopyright("Copyright © 2024 Stefan Berg")]
+[assembly: AssemblyCopyright("Copyright © 2024-2025 Stefan Berg")]
 
 // The minimum Version of N.I.N.A. that this plugin is compatible with
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.1018")]
@@ -32,7 +32,7 @@ using System.Windows.Markup;
 // The url to the license
 [assembly: AssemblyMetadata("LicenseURL", "https://www.mozilla.org/en-US/MPL/2.0/")]
 // The repository where your pluggin is hosted
-[assembly: AssemblyMetadata("Repository", "https://bitbucket.org/Isbeorn/nina.plugin.livestack")]
+[assembly: AssemblyMetadata("Repository", "https://github.com/isbeorn/nina.plugin.livestack/blob/main/CHANGELOG.md")]
 
 // The following attributes are optional for the official manifest meta data
 
@@ -46,11 +46,11 @@ using System.Windows.Markup;
 [assembly: AssemblyMetadata("ChangelogURL", "https://bitbucket.org/Isbeorn/nina.plugin.livestack/src/main/CHANGELOG.md")]
 
 //[Optional] The url to a featured logo that will be displayed in the plugin list next to the name
-[assembly: AssemblyMetadata("FeaturedImageURL", "https://bitbucket.org/Isbeorn/nina.plugin.livestack/downloads/logo.png")]
+[assembly: AssemblyMetadata("FeaturedImageURL", "https://github.com/isbeorn/nina.plugin.livestack/blob/main/logo.png?raw=true")]
 //[Optional] A url to an example screenshot of your plugin in action
-[assembly: AssemblyMetadata("ScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.livestack/downloads/featured.jpg")]
+[assembly: AssemblyMetadata("ScreenshotURL", "https://github.com/isbeorn/nina.plugin.livestack/blob/main/featured.jpg?raw=true")]
 //[Optional] An additional url to an example example screenshot of your plugin in action
-[assembly: AssemblyMetadata("AltScreenshotURL", "https://bitbucket.org/Isbeorn/nina.plugin.livestack/downloads/featured2.jpg")]
+[assembly: AssemblyMetadata("AltScreenshotURL", "https://github.com/isbeorn/nina.plugin.livestack/blob/main/featured2.jpg?raw=true")]
 //[Optional] An in-depth description of your plugin
 [assembly: AssemblyMetadata("LongDescription", @"This plugin enables live stacking functionality within N.I.N.A. - It allows you to view a live stack of your images, calibrate them, and manage them in real-time during your imaging session.
 
