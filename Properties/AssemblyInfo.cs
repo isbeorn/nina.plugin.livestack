@@ -8,8 +8,8 @@ using System.Windows.Markup;
 
 // [MANDATORY] The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.0.1.1")]
-[assembly: AssemblyFileVersion("1.0.1.1")]
+[assembly: AssemblyVersion("1.0.1.2")]
+[assembly: AssemblyFileVersion("1.0.1.2")]
 
 // [MANDATORY] The name of your plugin
 [assembly: AssemblyTitle("Livestack")]
@@ -32,7 +32,7 @@ using System.Windows.Markup;
 // The url to the license
 [assembly: AssemblyMetadata("LicenseURL", "https://www.mozilla.org/en-US/MPL/2.0/")]
 // The repository where your pluggin is hosted
-[assembly: AssemblyMetadata("Repository", "https://github.com/isbeorn/nina.plugin.livestack/blob/main/CHANGELOG.md")]
+[assembly: AssemblyMetadata("Repository", "https://github.com/isbeorn/nina.plugin.livestack")]
 
 // The following attributes are optional for the official manifest meta data
 
@@ -43,7 +43,7 @@ using System.Windows.Markup;
 [assembly: AssemblyMetadata("Tags", "Livestack")]
 
 //[Optional] A link that will show a log of all changes in between your plugin's versions
-[assembly: AssemblyMetadata("ChangelogURL", "https://bitbucket.org/Isbeorn/nina.plugin.livestack/src/main/CHANGELOG.md")]
+[assembly: AssemblyMetadata("ChangelogURL", "https://github.com/isbeorn/nina.plugin.livestack/blob/main/CHANGELOG.md")]
 
 //[Optional] The url to a featured logo that will be displayed in the plugin list next to the name
 [assembly: AssemblyMetadata("FeaturedImageURL", "https://github.com/isbeorn/nina.plugin.livestack/blob/main/logo.png?raw=true")]
