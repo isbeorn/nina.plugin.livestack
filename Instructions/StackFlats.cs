@@ -46,6 +46,7 @@ namespace NINA.Plugin.Livestack.Instructions {
             this.profileService = profileService;
             this.imageSaveMediator = imageSaveMediator;
             this.applicationStatusMediator = applicationStatusMediator;
+            Rejection = true;
         }
 
         private StackFlats(StackFlats copyMe) : this(copyMe.profileService, copyMe.imageSaveMediator, copyMe.applicationStatusMediator) {
@@ -54,7 +55,8 @@ namespace NINA.Plugin.Livestack.Instructions {
 
         public override object Clone() {
             var clone = new StackFlats(this) {
-                WaitForStack = WaitForStack
+                WaitForStack = WaitForStack,
+                Rejection = Rejection,
             };
 
             return clone;
@@ -66,6 +68,10 @@ namespace NINA.Plugin.Livestack.Instructions {
         [ObservableProperty]
         [property: JsonProperty]
         private bool waitForStack;
+
+        [ObservableProperty]
+        [property: JsonProperty]
+        private bool rejection;
 
         private string RetrieveTarget(ISequenceContainer parent) {
             if (parent != null) {
@@ -124,7 +130,14 @@ namespace NINA.Plugin.Livestack.Instructions {
                                     }
 
                                     Logger.Info($"Stacking flat for filter {filter} using {fitsFiles.Count} frames");
-                                    var stack = ImageMath.PercentileClipping(fitsFiles, 0.2, 0.1);
+                                    double lowerPercentile = 0.2;
+                                    double upperPercentile = 0.1;
+                                    if (!Rejection) {
+                                        Logger.Info($"Using average algorithm for stacking");
+                                        lowerPercentile = 0.0;
+                                        upperPercentile = 0.0;
+                                    }
+                                    var stack = ImageMath.PercentileClipping(fitsFiles, lowerPercentile, upperPercentile);
 
                                     var target = RetrieveTarget(this.Parent);
                                     var outputDir = Path.Combine(workingDir, "stacks");

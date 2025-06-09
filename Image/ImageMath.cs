@@ -69,18 +69,26 @@ namespace NINA.Plugin.Livestack.Image {
 
                     var median = pixelValues.Median();
 
-                    float sum = 0;
-                    float count = 0;
-                    foreach (var pixel in pixelValues) {
-                        if (median - (median * lowerPercentile) <= pixel && pixel <= median + (median * upperPercentile)) {
-                            sum += pixel;
-                            count++;
-                        }
-                    }
-                    if (count == 0) {
-                        master[pixelIndex] = median;
+                    if (lowerPercentile == 0.0 && upperPercentile == 0.0) {
+                        // Simple average
+                        float sum = 0;
+                        for (int i = 0; i < pixelValues.Length; i++)
+                            sum += pixelValues[i];
+                        master[pixelIndex] = sum / pixelValues.Length;
                     } else {
-                        master[pixelIndex] = sum / count;
+                        float sum = 0;
+                        float count = 0;
+                        foreach (var pixel in pixelValues) {
+                            if (median - (median * lowerPercentile) <= pixel && pixel <= median + (median * upperPercentile)) {
+                                sum += pixel;
+                                count++;
+                            }
+                        }
+                        if (count == 0) {
+                            master[pixelIndex] = median;
+                        } else {
+                            master[pixelIndex] = sum / count;
+                        }
                     }
                 }
             }

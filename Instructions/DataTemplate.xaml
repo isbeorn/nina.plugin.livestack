@@ -15,8 +15,14 @@
         <nina:SequenceBlockView>
             <nina:SequenceBlockView.SequenceItemContent>
                 <StackPanel Orientation="Horizontal">
-                    <TextBlock VerticalAlignment="Center" Text="Wait for flat stack?" />
-                    <CheckBox Margin="5,0,0,0" IsChecked="{Binding WaitForStack, Mode=TwoWay}" />
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock VerticalAlignment="Center" Text="Wait for flat stack?" />
+                        <CheckBox Margin="5,0,0,0" IsChecked="{Binding WaitForStack, Mode=TwoWay}" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="8,0,0,0">
+                        <TextBlock VerticalAlignment="Center" Text="Percentile Rejection?" />
+                        <CheckBox Margin="5,0,0,0" IsChecked="{Binding Rejection, Mode=TwoWay}" />
+                    </StackPanel>
                 </StackPanel>
             </nina:SequenceBlockView.SequenceItemContent>
             <nina:SequenceBlockView.SequenceItemProgressContent>
