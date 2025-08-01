@@ -112,7 +112,7 @@ The **Live Stack** panel includes several useful features:
 // COM, set the ComVisible attribute to true on that type.
 [assembly: ComVisible(false)]
 // [Unused]
-[assembly: AssemblyConfiguration("")]
+//[assembly: AssemblyConfiguration("")]
 // [Unused]
 [assembly: AssemblyTrademark("")]
 // [Unused]
