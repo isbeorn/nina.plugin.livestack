@@ -530,11 +530,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         public async Task OnMessageReceived(IMessage message) {
             if (message.Topic == $"Livestack_LivestackDockable_StartLiveStack") {
-                _ = StartLiveStackCommand.ExecuteAsync(null);
-            } else if (message.Topic == $"Livestack_LivestackDockable_StopLiveStack") {
                 if (LivestackMediator.LiveStackDockable.StartLiveStackCommand.IsRunning) {
-                    LivestackMediator.LiveStackDockable.StartLiveStackCancelCommand.Execute(null);
+                    return;
                 }
+                _ = StartLiveStackCommand.ExecuteAsync(null);
             } else if (message.Topic == $"Livestack_LivestackDockable_StopLiveStack") {
                 if (LivestackMediator.LiveStackDockable.StartLiveStackCommand.IsRunning) {
                     LivestackMediator.LiveStackDockable.StartLiveStackCancelCommand.Execute(null);

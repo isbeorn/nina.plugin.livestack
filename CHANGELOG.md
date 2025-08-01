@@ -1,5 +1,8 @@
 ﻿# Livestack
 
+## 1.0.1.1
+- Prevent live stack to be started multiple times when called via message broker
+
 ## 1.0.1.0
 - Handle cases for calibration masters where the floating point data is not normalized to 0..1 but instead defined via DATAMIN and DATAMAX keywords
 
