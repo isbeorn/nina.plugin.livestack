@@ -1,6 +1,6 @@
 ﻿# Livestack
 
-## 1.0.1.1
+## 1.0.1.3
 - Prevent live stack to be started multiple times when called via message broker
 
 ## 1.0.1.0

@@ -4,11 +4,17 @@
     <OutputType>Library</OutputType>
     <RootNamespace>NINA.Plugin.Livestack</RootNamespace>
     <AssemblyName>nina.plugin.livestack</AssemblyName>
-    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
     <UseWPF>true</UseWPF>
     <ImportWindowsDesktopTargets>true</ImportWindowsDesktopTargets>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <AssemblyTitle>Livestack</AssemblyTitle>
+    <Title>Livestack</Title>
+    <Authors>Stefan Berg @isbeorn</Authors>
+    <Product>Livestack</Product>
+    <Description>Live stacking within N.I.N.A.</Description>
+    <Copyright>Copyright ©  2024-2025</Copyright>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MathNet.Numerics" Version="5.0.0" />

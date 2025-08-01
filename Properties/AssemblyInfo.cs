@@ -8,21 +8,21 @@ using System.Windows.Markup;
 
 // [MANDATORY] The assembly versioning
 //Should be incremented for each new release build of a plugin
-[assembly: AssemblyVersion("1.0.1.2")]
-[assembly: AssemblyFileVersion("1.0.1.2")]
+//[assembly: AssemblyVersion("1.0.1.2")]
+//[assembly: AssemblyFileVersion("1.0.1.2")]
 
 // [MANDATORY] The name of your plugin
-[assembly: AssemblyTitle("Livestack")]
+//[assembly: AssemblyTitle("Livestack")]
 // [MANDATORY] A short description of your plugin
-[assembly: AssemblyDescription("Live stacking within N.I.N.A.")]
+//[assembly: AssemblyDescription("Live stacking within N.I.N.A.")]
 
 // The following attributes are not required for the plugin per se, but are required by the official manifest meta data
 
 // Your name
-[assembly: AssemblyCompany("Stefan Berg @isbeorn")]
+//[assembly: AssemblyCompany("Stefan Berg @isbeorn")]
 // The product name that this plugin is part of
-[assembly: AssemblyProduct("Livestack")]
-[assembly: AssemblyCopyright("Copyright © 2024-2025 Stefan Berg")]
+//[assembly: AssemblyProduct("Livestack")]
+//[assembly: AssemblyCopyright("Copyright © 2024-2025 Stefan Berg")]
 
 // The minimum Version of N.I.N.A. that this plugin is compatible with
 [assembly: AssemblyMetadata("MinimumApplicationVersion", "3.2.0.1018")]
