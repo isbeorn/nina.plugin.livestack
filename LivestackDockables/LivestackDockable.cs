@@ -533,10 +533,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 if (LivestackMediator.LiveStackDockable.StartLiveStackCommand.IsRunning) {
                     return;
                 }
-                _ = StartLiveStackCommand.ExecuteAsync(null);
+                await Application.Current.Dispatcher.BeginInvoke(() => StartLiveStackCommand.ExecuteAsync(null));
             } else if (message.Topic == $"Livestack_LivestackDockable_StopLiveStack") {
                 if (LivestackMediator.LiveStackDockable.StartLiveStackCommand.IsRunning) {
-                    LivestackMediator.LiveStackDockable.StartLiveStackCancelCommand.Execute(null);
+                    await Application.Current.Dispatcher.BeginInvoke(() => LivestackMediator.LiveStackDockable.StartLiveStackCancelCommand.Execute(null));
                 }
             }
         }
