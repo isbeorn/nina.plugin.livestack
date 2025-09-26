@@ -1,5 +1,9 @@
 ﻿# Livestack
 
+## 1.0.1.4
+- Fix start and stop live stack via message broker to not reflect properly in the User Interface
+- Added a reset to default button for the stretch popouts
+
 ## 1.0.1.3
 - Prevent live stack to be started multiple times when called via message broker
 

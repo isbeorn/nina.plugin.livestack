@@ -73,6 +73,13 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         [RelayCommand]
+        public void ResetSettings() {
+            StretchFactor = LivestackMediator.Plugin.DefaultStretchAmount;
+            BlackClipping = LivestackMediator.Plugin.DefaultBlackClipping;
+            Downsample = LivestackMediator.Plugin.DefaultDownsample;
+        }
+
+        [RelayCommand]
         public async Task Refresh(CancellationToken token) {
             try {
                 await Task.Run(() => {

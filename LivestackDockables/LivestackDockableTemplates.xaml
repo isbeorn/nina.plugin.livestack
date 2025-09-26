@@ -457,6 +457,9 @@
                                                                 HorizontalContentAlignment="Right"
                                                                 Text="{Binding Downsample, StringFormat=N0}" />
                                                         </Grid>
+                                                        <Button Command="{Binding ResetSettingsCommand}">
+                                                            <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="Reset Settings" />
+                                                        </Button>
                                                     </StackPanel>
                                                 </local:PopupButton.PopupContent>
                                             </local:PopupButton>
@@ -737,6 +740,9 @@
                                                             HorizontalContentAlignment="Right"
                                                             Text="{Binding Downsample, StringFormat=N0}" />
                                                     </Grid>
+                                                    <Button Command="{Binding ResetSettingsCommand}">
+                                                        <TextBlock Foreground="{StaticResource ButtonForegroundBrush}" Text="Reset Settings" />
+                                                    </Button>
                                                 </StackPanel>
                                             </local:PopupButton.PopupContent>
                                         </local:PopupButton>

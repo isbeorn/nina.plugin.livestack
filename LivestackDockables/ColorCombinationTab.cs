@@ -49,6 +49,19 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             downsample = LivestackMediator.Plugin.DefaultDownsample;
         }
 
+        [RelayCommand]
+        public void ResetSettings() {
+            RedStretchFactor = LivestackMediator.Plugin.DefaultStretchAmount;
+            GreenStretchFactor = LivestackMediator.Plugin.DefaultStretchAmount;
+            BlueStretchFactor = LivestackMediator.Plugin.DefaultStretchAmount;
+            RedBlackClipping = LivestackMediator.Plugin.DefaultBlackClipping;
+            GreenBlackClipping = LivestackMediator.Plugin.DefaultBlackClipping;
+            BlueBlackClipping = LivestackMediator.Plugin.DefaultBlackClipping;
+            EnableGreenDeNoise = LivestackMediator.Plugin.DefaultEnableGreenDeNoise;
+            GreenDeNoiseAmount = LivestackMediator.Plugin.DefaultGreenDeNoiseAmount;
+            Downsample = LivestackMediator.Plugin.DefaultDownsample;
+        }
+
         [ObservableProperty]
         private BitmapSource stackImage;
 
