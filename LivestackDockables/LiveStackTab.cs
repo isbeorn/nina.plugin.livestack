@@ -93,11 +93,23 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         public async Task Refresh(CancellationToken token) {
             try {
                 await Task.Run(() => {
+                    if (Stack == null) {
+                        // Nothing is stacked yet. This happens when the tab was created but its first frame got skipped before a reference was pushed
+                        StackImage = null;
+                        StackCount = bag.ImageCount;
+                        return;
+                    }
                     StackImage = Render(StretchFactor, BlackClipping, EnableBackgroundExtraction, BackgroundExtractionAmount, Downsample);
                     StackCount = bag.ImageCount;
                 }, token);
             } catch {
             }
+        }
+
+        public void ResetStack() {
+            bag.Reset();
+            StackCount = 0;
+            StackImage = null;
         }
 
         private BitmapSource Render(double stretchFactor, double blackClipping, bool enableBackgroundExtraction, double backgroundExtractionAmount, int downsample) {

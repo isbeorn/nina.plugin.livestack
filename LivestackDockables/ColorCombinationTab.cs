@@ -140,6 +140,15 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 await Task.Run(() => {
                     Locked = true;
                     try {
+                        if (red.Stack == null || green.Stack == null || blue.Stack == null) {
+                            // At least one channel has nothing stacked yet, so there is nothing to combine
+                            StackCountRed = red.StackCount;
+                            StackCountGreen = green.StackCount;
+                            StackCountBlue = blue.StackCount;
+                            StackImage = null;
+                            return;
+                        }
+
                         StackCountRed = red.StackCount;
                         StackCountGreen = green.StackCount;
                         StackCountBlue = blue.StackCount;
@@ -200,6 +209,14 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         public void MarkDirty() {
+            NeedsRefresh = true;
+        }
+
+        public void ResetStack() {
+            StackCountRed = 0;
+            StackCountGreen = 0;
+            StackCountBlue = 0;
+            StackImage = null;
             NeedsRefresh = true;
         }
 
