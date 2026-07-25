@@ -12,5 +12,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         public string Filter { get; }
         public bool Locked { get; set; }
         public BitmapSource StackImage { get; }
+
+        void ResetStack();
     }
 }

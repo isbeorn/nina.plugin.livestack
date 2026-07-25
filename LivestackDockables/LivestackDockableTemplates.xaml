@@ -32,6 +32,7 @@
                                 <ColumnDefinition />
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBlock
                                 HorizontalAlignment="Left"
@@ -58,6 +59,27 @@
                                 CancelButtonImage="{DynamicResource StopSVG}"
                                 CancelCommand="{Binding StartLiveStackCancelCommand}"
                                 Command="{Binding StartLiveStackCommand}" />
+                            <Button
+                                Grid.Column="3"
+                                Width="50"
+                                Height="25"
+                                Margin="5,6,0,6"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Bottom"
+                                Command="{Binding ResetStacksCommand}"
+                                Visibility="{Binding StartLiveStackCommand.IsRunning, Converter={StaticResource VisibilityConverter}}">
+                                <Button.ToolTip>
+                                    <ToolTip ToolTipService.ShowOnDisabled="True">
+                                        <TextBlock Text="Reset the stack - discards all accumulated stack data and uses the next accepted frame as new reference frame" />
+                                    </ToolTip>
+                                </Button.ToolTip>
+                                <Path
+                                    Margin="5"
+                                    Data="{StaticResource TrashCanOpenSVG}"
+                                    Fill="{StaticResource ButtonForegroundBrush}"
+                                    Stretch="Uniform"
+                                    UseLayoutRounding="True" />
+                            </Button>
                         </Grid>
                     </Expander.Header>
                     <Grid>

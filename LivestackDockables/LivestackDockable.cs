@@ -2,6 +2,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using NINA.Core.Enum;
 using NINA.Core.Model;
+using NINA.Core.MyMessageBox;
 using NINA.Core.Utility;
 using NINA.Core.Utility.Notification;
 using NINA.Core.Utility.WindowService;
@@ -107,6 +108,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private readonly IWindowServiceFactory windowServiceFactory;
         private readonly ICameraMediator cameraMediator;
         private readonly IMessageBroker messageBroker;
+
+        // Serializes stack mutations so a manual reset can never interleave with a frame that is currently being stacked
+        private readonly SemaphoreSlim stackMutationLock = new SemaphoreSlim(1, 1);
+
         private Guid? stackSessionId = null;
 
         [RelayCommand(IncludeCancelCommand = true)]
@@ -175,6 +180,55 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                     LiveStackMemoryPressure.CompactAfterReleasingLargeBuffers("live stack stopped");
                 }
             });
+        }
+
+        [RelayCommand]
+        private async Task ResetStacks(CancellationToken token) {
+            var tabsToReset = Tabs.ToList();
+            if (tabsToReset.Count == 0) {
+                Notification.ShowInformation("Live Stack - There is no stack to reset");
+                return;
+            }
+
+            var confirmation = MyMessageBox.Show(
+                "This will throw away the current live stack and close all stack tabs." + Environment.NewLine
+                    + "The next accepted frame will start a new stack and become its alignment reference frame." + Environment.NewLine + Environment.NewLine
+                    + "Do you want to reset the stack?",
+                "Reset live stack",
+                MessageBoxButton.OKCancel,
+                MessageBoxResult.Cancel);
+
+            if (confirmation != MessageBoxResult.OK) {
+                return;
+            }
+
+            await stackMutationLock.WaitAsync(token);
+            try {
+                Logger.Info($"Live Stack reset on user request. Closing {tabsToReset.Count} stack tab(s) and releasing their stack buffers. The next accepted frame will start a new stack.");
+                SelectedTab = null;
+                Tabs.Clear();
+
+                // Release the large stack buffers explicitly instead of waiting for the removed tabs to become unreachable
+                foreach (var tab in tabsToReset) {
+                    tab.ResetStack();
+                }
+
+                if (stackSessionId.HasValue) {
+                    foreach (var tab in tabsToReset) {
+                        if (tab is ColorCombinationTab colorTab) {
+                            _ = messageBroker.Publish(new LivestackBroadcast(LiveStackBroadcastContent.Color(0, 0, 0, colorTab.Filter, colorTab.Target, null), stackSessionId.Value));
+                        } else {
+                            _ = messageBroker.Publish(new LivestackBroadcast(LiveStackBroadcastContent.Monochrome(0, tab.Filter, tab.Target, null), stackSessionId.Value));
+                        }
+                    }
+                }
+            } finally {
+                stackMutationLock.Release();
+            }
+
+            await Task.Run(() => LiveStackMemoryPressure.CompactAfterReleasingLargeBuffers("stacks reset"));
+            applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "Stack reset - waiting for first frame" });
+            Notification.ShowInformation("Live Stack - The stack has been reset. The next accepted frame will start a new stack.");
         }
 
         [RelayCommand]
@@ -530,9 +584,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private async Task StackItem(LiveStackItem item, CancellationToken token) {
-            var tab = GetOrCreateStackBag(item);
-            tab.Locked = true;
+            await stackMutationLock.WaitAsync(token);
+            LiveStackTab tab = null;
             try {
+                tab = GetOrCreateStackBag(item);
+                tab.Locked = true;
                 if (SelectedTab == null) {
                     SelectedTab = tab;
                 }
@@ -566,7 +622,10 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                     }
                 }
             } finally {
-                tab.Locked = false;
+                if (tab != null) {
+                    tab.Locked = false;
+                }
+                stackMutationLock.Release();
             }
         }
 

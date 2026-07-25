@@ -1,9 +1,16 @@
 # Livestack
 
+## 1.2.0.0
+- Added a reset button to the live stack panel to throw away the current stack and start a new one
+    - The button is only shown while live stacking is running and asks for confirmation before resetting
+    - Resetting closes all stack tabs and releases their stack buffers, so the next accepted frame starts a new stack and becomes its alignment reference frame
+    - This makes it possible to recover from a bad first frame that was picked as alignment reference without having to restart live stacking
+- Stack mutations are now serialized so a reset can no longer interleave with a frame that is currently being stacked
+
 ## 1.1.3.0
 - Fixed live-stack alignment star selection when detector brightness metadata is unusable.
     - Alignment now falls back to valid detected star centroids when MaxBrightness is saturated, invalid, or NaN, instead of producing zero filtered stars.
-- Improved “not enough alignment stars” logging with reject-reason diagnostics for invalid position, outside frame, invalid brightness, saturated brightness, HFR outlier, and fallback candidate count.
+- Improved ï¿½not enough alignment starsï¿½ logging with reject-reason diagnostics for invalid position, outside frame, invalid brightness, saturated brightness, HFR outlier, and fallback candidate count.
 
 ## 1.1.2.0
 - Added more logging for failure cases
