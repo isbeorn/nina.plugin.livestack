@@ -24,6 +24,7 @@
 
   <ItemGroup>
     <Using Include="NUnit.Framework" />
+    <EmbeddedResource Include="TestData\RealCaptureCatalogs.jsonl" />
   </ItemGroup>
 
   <ItemGroup>

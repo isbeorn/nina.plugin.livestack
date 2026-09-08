@@ -50,17 +50,9 @@ namespace nina.plugin.livestack.benchmark {
             targetDetections = ToDetectedStars(targetStars, width, height);
         }
 
-        [Benchmark(Baseline = true)]
-        public double LegacyTriangleMatcher() {
-            return Align(ImageTransformer.Instance);
-        }
-
         [Benchmark]
-        public double QuadHashMatcher() {
-            return Align(ImageTransformer2.Instance);
-        }
-
-        private double Align(IImageTransformer transformer) {
+        public double MatchStars() {
+            IImageTransformer transformer = ImageTransformer2.Instance;
             var referenceStars = transformer.GetStars(referenceDetections, width, height);
             var targetStars = transformer.GetStars(targetDetections, width, height);
             var matrix = transformer.ComputeAffineTransformation(targetStars, referenceStars);

@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\nina.plugin.livestack.csproj" />
+    <Compile Include="..\nina.plugin.livestack.test\Reference\CalibrationReference.cs" Link="Reference\CalibrationReference.cs" />
   </ItemGroup>
 
   <ItemGroup>

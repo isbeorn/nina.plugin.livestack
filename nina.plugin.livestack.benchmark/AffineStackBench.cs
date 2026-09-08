@@ -14,6 +14,7 @@ namespace nina.plugin.livestack.benchmark {
         private float[] baselineStack = [];
         private float[] directStack = [];
         private float[] destination = [];
+        private uint[] contributionCounts = [];
         private double[,] affineMatrix = new double[3, 3];
         private int width;
         private int height;
@@ -39,6 +40,8 @@ namespace nina.plugin.livestack.benchmark {
             baselineStack = new float[length];
             directStack = new float[length];
             destination = new float[length];
+            contributionCounts = new uint[length];
+            Array.Fill(contributionCounts, 7u);
 
             for (int i = 0; i < length; i++) {
                 float value = ((i * 73) % 4096) / 4095f;
@@ -60,14 +63,14 @@ namespace nina.plugin.livestack.benchmark {
         [Benchmark(Baseline = true)]
         public float Baseline_TransformThenStack_Float() {
             float[] transformed = transformer.ApplyAffineTransformation(source, width, height, affineMatrix, flippedImage: false);
-            ImageMath.Instance.SequentialStack(transformed, baselineStack, stackImageCount: 7);
+            SequentialStack(transformed, baselineStack, stackImageCount: 7);
             return Sample(baselineStack) + Sample(transformed);
         }
 
         [Benchmark]
         public float Into_ThenStack_Float() {
             transformer.ApplyAffineTransformationInto(source, destination, width, height, affineMatrix, flippedImage: false);
-            ImageMath.Instance.SequentialStack(destination, directStack, stackImageCount: 7);
+            SequentialStack(destination, directStack, stackImageCount: 7);
             return Sample(directStack) + Sample(destination);
         }
 
@@ -80,7 +83,7 @@ namespace nina.plugin.livestack.benchmark {
         [Benchmark]
         public float Baseline_TransformThenStack_UShort() {
             float[] transformed = transformer.ApplyAffineTransformation(ushortSource, width, height, affineMatrix, flippedImage: false);
-            ImageMath.Instance.SequentialStack(transformed, baselineStack, stackImageCount: 7);
+            SequentialStack(transformed, baselineStack, stackImageCount: 7);
             return Sample(baselineStack) + Sample(transformed);
         }
 
@@ -88,6 +91,48 @@ namespace nina.plugin.livestack.benchmark {
         public float Direct_TransformAndStack_UShort() {
             transformer.ApplyAffineTransformationAndStack(ushortSource, directStack, stackImageCount: 7, width, height, affineMatrix, flippedImage: false);
             return Sample(directStack);
+        }
+
+        [Benchmark]
+        public float Direct_WeightedTransformAndStack_Float() {
+            transformer.ApplyAffineTransformationAndStack(source, directStack, contributionCounts, width, height, affineMatrix);
+            return Sample(directStack);
+        }
+
+        [Benchmark]
+        public float Direct_WeightedTransformAndStack_UShort() {
+            transformer.ApplyAffineTransformationAndStack(ushortSource, directStack, contributionCounts, width, height, affineMatrix);
+            return Sample(directStack);
+        }
+
+        // Historical baseline for measuring fused resampling against a separate averaging pass.
+        private static void SequentialStack(float[] image, float[] stack, int stackImageCount) {
+            int length = stack.Length;
+            float nextCount = stackImageCount + 1f;
+
+            if (!System.Numerics.Vector.IsHardwareAccelerated || length < System.Numerics.Vector<float>.Count) {
+                for (int i = 0; i < length; i++) {
+                    stack[i] = (stackImageCount * stack[i] + image[i]) / nextCount;
+                }
+                return;
+            }
+
+            int simd = System.Numerics.Vector<float>.Count;
+            int last = length - (length % simd);
+            int index = 0;
+
+            var currentCount = new System.Numerics.Vector<float>(stackImageCount);
+            var nextCountVector = new System.Numerics.Vector<float>(nextCount);
+
+            for (; index < last; index += simd) {
+                var currentStack = new System.Numerics.Vector<float>(stack, index);
+                var currentImage = new System.Numerics.Vector<float>(image, index);
+                (((currentStack * currentCount) + currentImage) / nextCountVector).CopyTo(stack, index);
+            }
+
+            for (; index < length; index++) {
+                stack[index] = (stackImageCount * stack[index] + image[index]) / nextCount;
+            }
         }
 
         private float Sample(float[] values) {

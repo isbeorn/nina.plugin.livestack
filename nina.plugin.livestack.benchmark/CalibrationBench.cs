@@ -5,6 +5,7 @@ using NINA.Core.Utility.WindowService;
 using NINA.Image.Interfaces;
 using NINA.Plugin.Livestack;
 using NINA.Plugin.Livestack.Image;
+using NINA.Plugin.Livestack.TestSupport;
 using NINA.Profile.Interfaces;
 
 [MemoryDiagnoser]
@@ -30,8 +31,9 @@ public class CalibrationBench {
     private bool frameIsBayered;
 
     private CFitsioFITSReader reader;
-    private CalibrationManager manager;
+    private CalibrationReference manager;
     private CalibrationManagerSimd manager2;
+    private float[] reusableOutput;
 
     [GlobalSetup]
     public void Setup() {
@@ -61,8 +63,9 @@ public class CalibrationBench {
             frameHeight = fits.Height;
         }
 
-        manager = new CalibrationManager();
-        manager2 = new CalibrationManagerSimd();
+        manager = new CalibrationReference();
+        manager2 = new CalibrationManagerSimd(cacheMasterRows: true);
+        reusableOutput = new float[frameWidth * frameHeight];
 
         // Register FLAT Master
         using (var fits = new CFitsioFITSReader(FlatPath)) {
@@ -116,6 +119,34 @@ public class CalibrationBench {
     [Benchmark()]
     public void SimdAndPixelRowOpti_Calibration() {
         manager2.ApplyLightFrameCalibrationInPlace(reader, frameWidth, frameHeight, frameExposureTime, frameGain, frameOffset, frameFilter, frameIsBayered);
+    }
+
+    [Benchmark]
+    public float CachedMastersAndAllocatedFrame() {
+        using CalibrationManagerSimd calibration = CreateFrameManager(true);
+        return calibration.ApplyLightFrameCalibrationInPlace(reader, frameWidth, frameHeight, frameExposureTime, frameGain, frameOffset, frameFilter, frameIsBayered)[0];
+    }
+
+    [Benchmark]
+    public float StreamedMastersAndReusedFrame() {
+        using CalibrationManagerSimd calibration = CreateFrameManager(false);
+        calibration.ApplyLightFrameCalibrationInto(reader, reusableOutput, frameWidth, frameHeight, frameExposureTime, frameGain, frameOffset, frameFilter, frameIsBayered);
+        return reusableOutput[0];
+    }
+
+    private CalibrationManagerSimd CreateFrameManager(bool cached) {
+        CalibrationManagerSimd calibration = new(cached);
+        foreach (CalibrationFrameMeta master in manager2.BiasLibrary) calibration.RegisterBiasMaster(master);
+        foreach (CalibrationFrameMeta master in manager2.DarkLibrary) calibration.RegisterDarkMaster(master);
+        foreach (CalibrationFrameMeta master in manager2.FlatLibrary) calibration.RegisterFlatMaster(master);
+        return calibration;
+    }
+
+    [GlobalCleanup]
+    public void Cleanup() {
+        reader.Dispose();
+        manager.Dispose();
+        manager2.Dispose();
     }
 
     /*

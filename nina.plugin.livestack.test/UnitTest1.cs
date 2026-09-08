@@ -6,6 +6,7 @@ using NINA.Image.ImageData;
 using NINA.Image.Interfaces;
 using NINA.Plugin.Livestack;
 using NINA.Plugin.Livestack.Image;
+using NINA.Plugin.Livestack.TestSupport;
 using NINA.Plugin.Livestack.LivestackDockables;
 using NINA.Profile.Interfaces;
 using Accord;
@@ -29,7 +30,7 @@ namespace nina.plugin.livestack.test {
         private bool frameIsBayered;
 
         private CFitsioFITSReader? reader;
-        private CalibrationManager? manager;
+        private CalibrationReference? manager;
         private CalibrationManagerSimd? manager2;
 
         [SetUp]
@@ -61,7 +62,7 @@ namespace nina.plugin.livestack.test {
                 frameHeight = fits.Height;
             }
 
-            manager = new CalibrationManager();
+            manager = new CalibrationReference();
             manager2 = new CalibrationManagerSimd();
 
             // Register FLAT Master
@@ -150,28 +151,11 @@ namespace nina.plugin.livestack.test {
         }
 
         [Test]
-        public void ComputeAffineTransformation_SucceedsWithSparseCorrespondences() {
-            var transformer = ImageTransformer2.Instance;
-            var estimateMethod = typeof(ImageTransformer2).GetMethod("EstimateAffineTransformation", BindingFlags.Instance | BindingFlags.NonPublic);
-
-            Assert.That(estimateMethod, Is.Not.Null);
-
-            var sparsePairs = new List<(Point Ref, Point Src, int Votes)> {
-                (new Point(0, 0), new Point(12, -7), 10),
-                (new Point(100, 0), new Point(112, -7), 10),
-                (new Point(0, 100), new Point(12, 93), 10),
-                (new Point(100, 100), new Point(112, 93), 10),
-                (new Point(50, 30), new Point(62, 23), 10)
-            };
-
-            var matrix = (double[,])estimateMethod!.Invoke(transformer, new object[] { sparsePairs })!;
-
-            Assert.That(matrix[0, 0], Is.EqualTo(1d).Within(1e-6));
-            Assert.That(matrix[1, 1], Is.EqualTo(1d).Within(1e-6));
-            Assert.That(matrix[0, 1], Is.EqualTo(0d).Within(1e-6));
-            Assert.That(matrix[1, 0], Is.EqualTo(0d).Within(1e-6));
-            Assert.That(matrix[0, 2], Is.EqualTo(12d).Within(1e-6));
-            Assert.That(matrix[1, 2], Is.EqualTo(-7d).Within(1e-6));
+        public void ComputeAffineTransformation_RecoversSparseTranslationThroughPublicMatcher() {
+            List<Point> reference = AlignmentSafetyTests.CreateCatalog(8, 149);
+            double[,] expected = AlignmentSafetyTests.Matrix(tx: 12, ty: -7);
+            double[,] actual = ImageTransformer2.Instance.ComputeAffineTransformation(AlignmentSafetyTests.Project(reference, expected), reference);
+            AssertAffineClose(expected, actual, matrixTol: 1e-5, translationTol: 0.001);
         }
 
         [Test]
@@ -458,12 +442,13 @@ namespace nina.plugin.livestack.test {
         }
 
         [Test]
-        public void SequentialStack_SimdMatchesScalarReference() {
+        public void UniformCoverageStackMatchesScalarReference() {
             float[] originalStack = Enumerable.Range(0, 37).Select(i => ((i * 17) % 101) / 100f).ToArray();
             float[] image = Enumerable.Range(0, 37).Select(i => ((i * 29) % 97) / 96f).ToArray();
             float[] stack = (float[])originalStack.Clone();
 
-            ImageMath.Instance.SequentialStack(image, stack, stackImageCount: 7);
+            ImageTransformer2.Instance.ApplyAffineTransformationAndStack(image, stack, stackImageCount: 7,
+                width: 37, height: 1, AlignmentSafetyTests.Matrix());
 
             float[] expected = SequentialStackReference(image, originalStack, stackImageCount: 7);
             FloatAssert.AreEqual(expected, stack);
@@ -483,11 +468,11 @@ namespace nina.plugin.livestack.test {
                 foreach (bool flipped in new[] { false, true }) {
                     float[] expected = ApplyAffineTransformationReference(source, width, height, matrix, flipped);
                     float[] actual = transformer.ApplyAffineTransformation(source, width, height, matrix, flipped);
-                    FloatAssert.AreEqual(expected, actual, absTol: 0f, relTol: 0f);
+                    FloatAssert.AreEqual(expected, actual, absTol: 1e-6f, relTol: 1e-6f);
 
                     float[] destination = Enumerable.Repeat(1f, width * height).ToArray();
                     transformer.ApplyAffineTransformationInto(source, destination, width, height, matrix, flipped);
-                    FloatAssert.AreEqual(expected, destination, absTol: 0f, relTol: 0f);
+                    FloatAssert.AreEqual(expected, destination, absTol: 1e-6f, relTol: 1e-6f);
 
                     float[] originalStack = Enumerable.Range(0, width * height)
                         .Select(i => ((i * 97) % 997) / 996f)
@@ -495,7 +480,7 @@ namespace nina.plugin.livestack.test {
                     float[] stack = (float[])originalStack.Clone();
                     transformer.ApplyAffineTransformationAndStack(source, stack, stackImageCount: 5, width, height, matrix, flipped);
 
-                    float[] expectedStack = SequentialStackReference(expected, originalStack, stackImageCount: 5);
+                    float[] expectedStack = StackWithCoverageReference(expected, originalStack, 5, width, height, matrix, flipped);
                     FloatAssert.AreEqual(expectedStack, stack, absTol: 1e-6f, relTol: 1e-6f);
                 }
             }
@@ -516,11 +501,11 @@ namespace nina.plugin.livestack.test {
                 foreach (bool flipped in new[] { false, true }) {
                     float[] expectedFloat = ApplyAffineTransformationReference(ushortSource, width, height, matrix, flipped);
                     float[] actualFloat = transformer.ApplyAffineTransformation(ushortSource, width, height, matrix, flipped);
-                    FloatAssert.AreEqual(expectedFloat, actualFloat, absTol: 0f, relTol: 0f);
+                    FloatAssert.AreEqual(expectedFloat, actualFloat, absTol: 1e-6f, relTol: 1e-6f);
 
                     float[] destinationFloat = Enumerable.Repeat(1f, width * height).ToArray();
                     transformer.ApplyAffineTransformationInto(ushortSource, destinationFloat, width, height, matrix, flipped);
-                    FloatAssert.AreEqual(expectedFloat, destinationFloat, absTol: 0f, relTol: 0f);
+                    FloatAssert.AreEqual(expectedFloat, destinationFloat, absTol: 1e-6f, relTol: 1e-6f);
 
                     float[] originalStack = Enumerable.Range(0, width * height)
                         .Select(i => ((i * 83) % 991) / 990f)
@@ -528,16 +513,16 @@ namespace nina.plugin.livestack.test {
                     float[] stack = (float[])originalStack.Clone();
                     transformer.ApplyAffineTransformationAndStack(ushortSource, stack, stackImageCount: 3, width, height, matrix, flipped);
 
-                    float[] expectedStack = SequentialStackReference(expectedFloat, originalStack, stackImageCount: 3);
+                    float[] expectedStack = StackWithCoverageReference(expectedFloat, originalStack, 3, width, height, matrix, flipped);
                     FloatAssert.AreEqual(expectedStack, stack, absTol: 1e-6f, relTol: 1e-6f);
 
                     ushort[] expectedUshort = ApplyAffineTransformationAsUShortReference(floatSource, width, height, matrix, flipped);
                     ushort[] actualUshort = transformer.ApplyAffineTransformationAsUshort(floatSource, width, height, matrix, flipped);
-                    Assert.That(actualUshort, Is.EqualTo(expectedUshort));
+                    Assert.That(actualUshort, Is.EqualTo(expectedUshort).Within(1));
 
                     ushort[] destinationUshort = Enumerable.Repeat((ushort)123, width * height).ToArray();
                     transformer.ApplyAffineTransformationAsUshortInto(floatSource, destinationUshort, width, height, matrix, flipped);
-                    Assert.That(destinationUshort, Is.EqualTo(expectedUshort));
+                    Assert.That(destinationUshort, Is.EqualTo(expectedUshort).Within(1));
                 }
             }
         }
@@ -737,76 +722,44 @@ namespace nina.plugin.livestack.test {
             };
         }
 
-        private static float[] ApplyAffineTransformationReference(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage) {
-            float[] transformedImageData = new float[width * height];
-
+        // Deliberately scalar mathematical reference: four bilinear weights and an explicit
+        // validity mask, independent of the fused production accumulator.
+        private static float[] ApplyAffineTransformationReference(float[] source, int width, int height, double[,] matrix, bool flipped) {
+            float[] output = new float[source.Length];
             for (int y = 0; y < height; y++) {
                 for (int x = 0; x < width; x++) {
-                    float transformedX = (float)(affineMatrix[0, 0] * x + affineMatrix[0, 1] * y + affineMatrix[0, 2]);
-                    float transformedY = (float)(affineMatrix[1, 0] * x + affineMatrix[1, 1] * y + affineMatrix[1, 2]);
-
-                    int newX = (int)transformedX;
-                    int newY = (int)transformedY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
+                    double u = matrix[0, 0] * x + matrix[0, 1] * y + matrix[0, 2];
+                    double v = matrix[1, 0] * x + matrix[1, 1] * y + matrix[1, 2];
+                    if (flipped) {
+                        u = width - 1 - u;
+                        v = height - 1 - v;
                     }
-
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        transformedImageData[y * width + x] = sourceImageData[newY * width + newX];
+                    if (u < 0 || v < 0 || u > width - 1 || v > height - 1) {
+                        continue;
                     }
+                    int left = (int)Math.Floor(u), top = (int)Math.Floor(v);
+                    int right = Math.Min(left + 1, width - 1), bottom = Math.Min(top + 1, height - 1);
+                    double horizontal = u - left, vertical = v - top;
+                    output[y * width + x] = (float)(source[top * width + left] * (1 - horizontal) * (1 - vertical)
+                        + source[top * width + right] * horizontal * (1 - vertical)
+                        + source[bottom * width + left] * (1 - horizontal) * vertical
+                        + source[bottom * width + right] * horizontal * vertical);
                 }
             }
-
-            return transformedImageData;
+            return output;
         }
 
-        private static float[] ApplyAffineTransformationReference(ushort[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage) {
-            float[] transformedImageData = new float[width * height];
-
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    float transformedX = (float)(affineMatrix[0, 0] * x + affineMatrix[0, 1] * y + affineMatrix[0, 2]);
-                    float transformedY = (float)(affineMatrix[1, 0] * x + affineMatrix[1, 1] * y + affineMatrix[1, 2]);
-
-                    int newX = (int)transformedX;
-                    int newY = (int)transformedY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
-                    }
-
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        transformedImageData[y * width + x] = sourceImageData[newY * width + newX] / (float)ushort.MaxValue;
-                    }
-                }
-            }
-
-            return transformedImageData;
+        private static float[] ApplyAffineTransformationReference(ushort[] source, int width, int height, double[,] matrix, bool flipped) {
+            return ApplyAffineTransformationReference(source.Select(value => value / (float)ushort.MaxValue).ToArray(), width, height, matrix, flipped);
         }
 
-        private static ushort[] ApplyAffineTransformationAsUShortReference(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage) {
-            ushort[] transformedImageData = new ushort[width * height];
+        private static ushort[] ApplyAffineTransformationAsUShortReference(float[] source, int width, int height, double[,] matrix, bool flipped) {
+            return ApplyAffineTransformationReference(source, width, height, matrix, flipped).Select(value => (ushort)Math.Clamp(value * ushort.MaxValue, 0, ushort.MaxValue)).ToArray();
+        }
 
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    float transformedX = (float)(affineMatrix[0, 0] * x + affineMatrix[0, 1] * y + affineMatrix[0, 2]);
-                    float transformedY = (float)(affineMatrix[1, 0] * x + affineMatrix[1, 1] * y + affineMatrix[1, 2]);
-
-                    int newX = (int)transformedX;
-                    int newY = (int)transformedY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
-                    }
-
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        transformedImageData[y * width + x] = (ushort)Math.Clamp(sourceImageData[newY * width + newX] * ushort.MaxValue, 0, ushort.MaxValue);
-                    }
-                }
-            }
-
-            return transformedImageData;
+        private static float[] StackWithCoverageReference(float[] transformed, float[] original, int count, int width, int height, double[,] matrix, bool flipped) {
+            float[] valid = ApplyAffineTransformationReference(Enumerable.Repeat(1f, original.Length).ToArray(), width, height, matrix, flipped);
+            return transformed.Select((value, i) => valid[i] == 0 ? original[i] : (count * original[i] + value) / (count + 1f)).ToArray();
         }
 
         private static float[] PercentileClippingReference(IReadOnlyList<float[]> images, IReadOnlyList<float> medians, float lowerPercentile, float upperPercentile, int width, int height) {

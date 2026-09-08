@@ -255,9 +255,10 @@ namespace NINA.Plugin.Livestack.Instructions {
                         foreach (var meta in LivestackMediator.CalibrationVM.DarkLibrary) {
                             calibrationManager.RegisterDarkMaster(meta);
                         }
-                        float[] theImageArray;
+                        using ImageBufferLease frame = ImageBufferPool.Shared.Rent(AffineResampler.GetLength(item.Width, item.Height));
+                        float[] theImageArray = frame.Buffer;
                         using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
-                            theImageArray = calibrationManager.ApplyFlatFrameCalibrationInPlace(reader, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered);
+                            calibrationManager.ApplyFlatFrameCalibrationInto(reader, theImageArray, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered, token);
                         }
 
                         Logger.Debug("Computing median after calibration");

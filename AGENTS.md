@@ -71,33 +71,32 @@ High-level flow:
 
 ### Calibration
 
-Calibration logic lives in:
+`Image/CalibrationManagerSimd.cs` is the production implementation selected by
+`LivestackMediator`. It streams calibration masters through rented row buffers by
+default, supports optional full master caching and uses span-based FITS reads.
+Light and flat calibration share a frame loop with SIMD processing and a scalar
+fallback.
 
-- `Image/CalibrationManager.cs`
-  older baseline implementation
-- `Image/CalibrationManagerSimd.cs`
-  current implementation selected by `LivestackMediator`
-
-`CalibrationManagerSimd` is the default path. It:
-
-- caches calibration masters lazily by row
-- uses contiguous backing storage
-- reads rows with span-based FITS APIs
-- uses SIMD for the row kernel when available
-
-When changing calibration behavior, compare against the baseline implementation and run the test project.
+The historical scalar reference lives in
+`nina.plugin.livestack.test/Reference/CalibrationReference.cs`. The benchmark
+project links that same file; it is excluded from the plugin assembly. When
+changing calibration behavior, compare against this reference and run the tests.
 
 ### Alignment
 
-Alignment logic is in `Image/ImageTransformer2.cs`.
+Alignment logic is in `Image/ImageTransformer2.cs` and its `.Alignment.cs` partial.
 
 It uses:
 
-- star filtering and spatial selection
-- triangle matching between reference and target stars
-- a voting matrix to establish correspondences
-- affine estimation with two-pass RANSAC refinement
-- special handling for likely meridian flips
+- star filtering, grid-based bright-star seeds and spatial selection
+- triangle and quad matching to propose correspondences
+- bounded RANSAC and least-squares refinement
+- final validation of unique matches, spatial coverage, residuals and geometry
+- similarity transforms with a constrained affine correction when justified
+
+Meridian flips are handled as rotations in the solved matrix. All candidates
+pass the same acceptance policy before stack accumulation. See
+`docs/live-stacking-alignment.md` for thresholds and rejection behavior.
 
 This is the active transformer returned by `LivestackMediator.GetImageTransformer()`.
 
@@ -177,15 +176,14 @@ dotnet test nina.plugin.livestack.test/nina.plugin.livestack.test.csproj -c Debu
 
 ### What is actually covered
 
-Automated coverage is minimal.
+The NUnit suite covers calibration against an independent scalar reference,
+star selection, alignment acceptance and rejection, bilinear sampling, pixel
+weights, buffer ownership and count promotion. Integration tests construct the
+dockable and exercise mono rejection, preview rendering, cancellation, failure
+recovery and dependent-tab removal. Sample FITS files also exercise native I/O.
 
-The only current NUnit test in `nina.plugin.livestack.test/UnitTest1.cs` verifies that:
-
-- `CalibrationManager` baseline output
-- matches `CalibrationManagerSimd` output
-- on sample benchmark FITS data
-
-Do not assume the UI, broker integration, or alignment behavior is covered by tests.
+These tests do not replace a real N.I.N.A. camera replay or complete broker and
+sequencer validation.
 
 ### Run benchmarks
 

@@ -18,6 +18,8 @@ using System.IO;
 using Microsoft.Win32;
 using System.Windows.Input;
 
+using NINA.Plugin.Livestack.Image;
+
 namespace NINA.Plugin.Livestack {
 
     /// <summary>
@@ -59,6 +61,7 @@ namespace NINA.Plugin.Livestack {
         }
 
         public override Task Teardown() {
+            ImageBufferPool.Shared.Trim();
             // Make sure to unregister an event when the object is no longer in use. Otherwise garbage collection will be prevented.
             profileService.ProfileChanged -= ProfileService_ProfileChanged;
 

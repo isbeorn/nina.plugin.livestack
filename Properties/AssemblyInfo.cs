@@ -3,6 +3,8 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Markup;
 
+[assembly: InternalsVisibleTo("nina.plugin.livestack.test")]
+
 // [MANDATORY] The following GUID is used as a unique identifier of the plugin. Generate a fresh one for your plugin!
 [assembly: Guid("10bc1716-54af-425e-b307-c0ca1ce10600")]
 

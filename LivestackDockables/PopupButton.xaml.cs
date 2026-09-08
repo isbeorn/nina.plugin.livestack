@@ -83,12 +83,6 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
         }
 
-        private void PopupControl_LostKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e) {
-            if (PopupControl.IsOpen && !PopupControl.IsKeyboardFocusWithin) {
-                ToggleButtonPopup.IsChecked = false;
-            }
-        }
-
         private void PopupControl_PreviewKeyUp(object sender, KeyEventArgs e) {
             if (e.Key == Key.Escape) {
                 if (PopupControl.IsOpen) {

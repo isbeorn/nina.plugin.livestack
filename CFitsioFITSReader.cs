@@ -99,25 +99,6 @@ namespace NINA.Plugin.Livestack {
             }
         }
 
-        private T[] ReadAllPixels<T>() {
-            const int nelem = 2;
-            var firstpix = new int[nelem] { 1, 1 };
-
-            var datatype = GetDataType(typeof(T));
-
-            unsafe {
-                var resultBuffer = new T[Width * Height];
-
-                var nulVal = default(T);
-                var nulValRef = &nulVal;
-                fixed (T* fixedBuffer = resultBuffer) {
-                    var result = CfitsioNative.fits_read_pix(filePtr, datatype, firstpix, Width * Height, (IntPtr)nulValRef, (IntPtr)fixedBuffer, out var nullCount, out var status);
-                    CheckStatus("fits_read_pix", status);
-                }
-                return resultBuffer;
-            }
-        }
-
         [Obsolete("Use ReadPixelRowAsFloat(int row, Span<float> destination) instead for better performance and less memory allocations.")]
         public float[] ReadPixelRowAsFloat(int row) {
             if (BitPix == BITPIX.BYTE_IMG) {

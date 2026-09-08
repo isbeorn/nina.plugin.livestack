@@ -6,11 +6,12 @@ using NINA.Image.ImageAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace NINA.Plugin.Livestack.Image {
 
-    public class ImageTransformer2 : IImageTransformer {
+    public partial class ImageTransformer2 : IImageTransformer {
         private const int MaxStars = 1000;
         private const int MaxTriangleFallbackStars = 72;
         private const int MaxTriangleCandidates = 3;
@@ -19,7 +20,6 @@ namespace NINA.Plugin.Livestack.Image {
         private const int MaxTargetQuads = 10000;
         private const int MaxQuadCandidates = 8;
         private const int MaxQuadMatchPairs = 160;
-        private const int MinimumAffineStarCount = 3;
         private const int MaxStableSelectionCandidates = 2000;
         private const int StableSelectionGridSize = 32;
         private const int MinimumTriangleSetForParallelVoting = 1024;
@@ -45,7 +45,7 @@ namespace NINA.Plugin.Livestack.Image {
         /// Selects a bounded, high-quality star catalog for alignment from the raw detector output.
         /// </summary>
         /// <remarks>
-        /// The first portion preserves the legacy bright-star ordering when those stars pass the
+        /// The first portion preserves the grid-based bright-star ordering when those stars pass the
         /// stricter quality checks. The remaining slots are filled with a farthest-point sample so
         /// the catalog remains spatially stable when star brightness ranks change between frames.
         /// </remarks>
@@ -63,13 +63,13 @@ namespace NINA.Plugin.Livestack.Image {
             int strictCandidateCount = candidateStars.Count;
             int looseCandidateCount = -1;
             StarFilterDiagnostics looseDiagnostics = default;
-            if (candidateStars.Count < 8) {
+            if (candidateStars.Count < MinimumAlignmentInliers) {
                 candidateStars = BuildScoredStars(starList, width, height, strictFiltering: false, out looseDiagnostics);
                 looseCandidateCount = candidateStars.Count;
             }
 
             if (candidateStars.Count == 0) {
-                Logger.Warning($"Live Stack star filtering produced no alignment candidates. Raw detector stars={rawStarCount}; Strict candidates={strictCandidateCount}; Loose candidates={FormatCandidateCount(looseCandidateCount)}; Strict rejects=[{strictDiagnostics}]; Loose rejects=[{FormatDiagnostics(looseCandidateCount, looseDiagnostics)}]; Required={MinimumAffineStarCount}; Frame size={width}x{height}");
+                Logger.Warning($"Live Stack star filtering produced no alignment candidates. Raw detector stars={rawStarCount}; Strict candidates={strictCandidateCount}; Loose candidates={FormatCandidateCount(looseCandidateCount)}; Strict rejects=[{strictDiagnostics}]; Loose rejects=[{FormatDiagnostics(looseCandidateCount, looseDiagnostics)}]; Required={MinimumAlignmentInliers}; Frame size={width}x{height}");
                 return new List<Point>();
             }
 
@@ -78,8 +78,7 @@ namespace NINA.Plugin.Livestack.Image {
                 .Select(candidate => (candidate.Position.X, candidate.Position.Y))
                 .ToHashSet();
 
-            List<Point> selectedStars = ImageTransformer.Instance
-                .GetStars(starList, width, height)
+            List<Point> selectedStars = SelectBrightStarSeeds(starList, width, height)
                 .Where(point => IsPointWellInsideFrame(point, width, height))
                 .Where(point => candidatePositions.Contains((point.X, point.Y)))
                 .Take(targetStarCount)
@@ -100,11 +99,59 @@ namespace NINA.Plugin.Livestack.Image {
                 }
             }
 
-            if (selectedStars.Count < MinimumAffineStarCount) {
-                Logger.Warning($"Live Stack star selection produced too few alignment stars. Raw detector stars={rawStarCount}; Strict candidates={strictCandidateCount}; Loose candidates={FormatCandidateCount(looseCandidateCount)}; Strict rejects=[{strictDiagnostics}]; Loose rejects=[{FormatDiagnostics(looseCandidateCount, looseDiagnostics)}]; Selected alignment stars={selectedStars.Count}; Required={MinimumAffineStarCount}; Frame size={width}x{height}");
+            if (selectedStars.Count < MinimumAlignmentInliers) {
+                Logger.Warning($"Live Stack star selection produced too few alignment stars. Raw detector stars={rawStarCount}; Strict candidates={strictCandidateCount}; Loose candidates={FormatCandidateCount(looseCandidateCount)}; Strict rejects=[{strictDiagnostics}]; Loose rejects=[{FormatDiagnostics(looseCandidateCount, looseDiagnostics)}]; Selected alignment stars={selectedStars.Count}; Required={MinimumAlignmentInliers}; Frame size={width}x{height}");
             }
 
             return selectedStars;
+        }
+
+        private List<Point> SelectBrightStarSeeds(List<DetectedStar> starList, int width, int height) {
+            const int maxStars = 100;
+
+            // Preserve the seed order used by the ordered triangle proposal.
+            var filteredStars = starList
+                .Where(x => x.MaxBrightness < 65000) // Exclude saturated stars
+                .OrderByDescending(x => x.MaxBrightness) // Prioritize brighter stars
+                .ToList();
+
+            // Divide the image into a grid and select the brightest stars in each grid cell
+            int gridSize = 5;
+            double cellWidth = width / (double)gridSize;
+            double cellHeight = height / (double)gridSize;
+            int maxStarsPerCell = Math.Max(1, maxStars / (gridSize * gridSize));
+
+            var selectedStars = new List<Accord.Point>();
+
+            for (int i = 0; i < gridSize; i++) {
+                for (int j = 0; j < gridSize; j++) {
+                    // Get the stars in the current grid cell
+                    var starsInCell = filteredStars
+                        .Where(s => s.Position.X >= i * cellWidth && s.Position.X < (i + 1) * cellWidth
+                                 && s.Position.Y >= j * cellHeight && s.Position.Y < (j + 1) * cellHeight)
+                        .OrderByDescending(s => s.MaxBrightness) // Pick the brightest stars in the cell
+                        .Take(maxStarsPerCell)
+                        .ToList();
+
+                    selectedStars.AddRange(starsInCell.Select(s => s.Position));
+                }
+            }
+
+            // If we still need more stars, fall back to the closest ones to the center
+            if (selectedStars.Count < maxStars) {
+                var centerX = width / 2.0;
+                var centerY = height / 2.0;
+
+                selectedStars.AddRange(
+                    filteredStars
+                        .Where(s => !selectedStars.Contains(s.Position))
+                        .OrderBy(s => GetDistanceToCenter(s.Position, centerX, centerY))
+                        .Take(maxStars - selectedStars.Count)
+                        .Select(s => s.Position)
+                );
+            }
+
+            return selectedStars.Take(maxStars).ToList();
         }
 
         private static string FormatCandidateCount(int count) {
@@ -420,7 +467,7 @@ namespace NINA.Plugin.Livestack.Image {
                 scoredStars.Add(new ScoredStar(star.Position, score, i));
             }
 
-            if (!strictFiltering && scoredStars.Count < MinimumAffineStarCount && brightnessFallbackStars?.Count > 0) {
+            if (!strictFiltering && scoredStars.Count < MinimumAlignmentInliers && brightnessFallbackStars?.Count > 0) {
                 diagnostics.BrightnessFallbackCandidates = brightnessFallbackStars.Count;
                 scoredStars.AddRange(brightnessFallbackStars);
             }
@@ -507,65 +554,21 @@ namespace NINA.Plugin.Livestack.Image {
             return absoluteDeviation.Median();
         }
 
-        /// <summary>
-        /// Estimates the affine transform that maps reference stars into the current frame.
-        /// </summary>
-        /// <remarks>
-        /// The pipeline intentionally tries the cheapest path first. Ordered triangle matching is
-        /// accepted only when it projects enough reference stars onto current-frame stars. If that
-        /// validation fails, quad hashing proposes geometry-only candidates that tolerate large
-        /// shifts and 180 degree meridian-flip-like rotations. The final fallback is the older
-        /// triangle matcher on a spatially stable subset.
-        /// </remarks>
-        /// <param name="stars">Target-frame star centroids.</param>
-        /// <param name="referenceStars">Reference-frame star centroids.</param>
-        /// <returns>A 3x3 affine matrix that maps reference coordinates to target coordinates.</returns>
-        /// <exception cref="InvalidOperationException">Thrown when fewer than three stars are available.</exception>
-        public double[,] ComputeAffineTransformation(
-                List<Point> stars,
-                List<Point> referenceStars) {
-            if (stars == null || referenceStars == null || stars.Count < MinimumAffineStarCount || referenceStars.Count < MinimumAffineStarCount) {
-                int targetStarCount = stars?.Count ?? 0;
-                int referenceStarCount = referenceStars?.Count ?? 0;
-                throw new InvalidOperationException($"Not enough stars for affine transformation. Target stars={targetStarCount}; Reference stars={referenceStarCount}; Required={MinimumAffineStarCount}.");
+        /// <summary>Compatibility API. New callers should retain the acceptance diagnostics from ComputeAlignment.</summary>
+        public double[,] ComputeAffineTransformation(List<Point> stars, List<Point> referenceStars) {
+            List<Point> positions = (stars ?? new List<Point>()).Concat(referenceStars ?? new List<Point>()).ToList();
+            int width = InferFrameExtent(positions.Select(point => point.X));
+            int height = InferFrameExtent(positions.Select(point => point.Y));
+            AlignmentResult result = ComputeAlignment(stars, referenceStars, width, height);
+            if (!result.Success) {
+                throw new InvalidOperationException(result.RejectionReason);
             }
-
-            try {
-                double[,] orderedTriangleTransformation = ComputeTriangleAffineTransformation(
-                    LimitPointSetForTriangleFallback(stars, preserveOrder: true),
-                    LimitPointSetForTriangleFallback(referenceStars, preserveOrder: true));
-                if (HasSufficientProjectedInliers(orderedTriangleTransformation, referenceStars, stars)) {
-                    return orderedTriangleTransformation;
-                }
-            } catch {
-            }
-
-            string quadFallbackReason = "no validated quad-derived affine model";
-            try {
-                if (TryComputeQuadAffineTransformation(referenceStars, stars, out double[,] quadAffineTransformation)) {
-                    return quadAffineTransformation;
-                }
-            } catch (Exception ex) {
-                quadFallbackReason = $"{ex.GetType().Name}: {ex.Message}";
-            }
-
-            Logger.Info($"Quad star matching failed ({quadFallbackReason}); falling back to triangle matching. Reference stars: {referenceStars.Count}; target stars: {stars.Count}");
-
-            return ComputeTriangleAffineTransformation(
-                LimitPointSetForTriangleFallback(stars, preserveOrder: false),
-                LimitPointSetForTriangleFallback(referenceStars, preserveOrder: false));
+            return result.Matrix;
         }
 
-        /// <summary>
-        /// Verifies that a proposed model explains enough stars across the full catalogs.
-        /// </summary>
-        /// <param name="model">Affine model mapping reference coordinates to target coordinates.</param>
-        /// <param name="referenceStars">Reference catalog used for projection.</param>
-        /// <param name="stars">Target catalog used for nearest-star lookup.</param>
-        /// <returns><c>true</c> when the model has enough projected inliers to trust.</returns>
-        private bool HasSufficientProjectedInliers(double[,] model, List<Point> referenceStars, List<Point> stars) {
-            int minimumInliers = Math.Clamp((int)Math.Ceiling(Math.Min(referenceStars.Count, stars.Count) * 0.15d), 8, 250);
-            return CollectProjectedInliers(model, referenceStars, stars, inlierThresholdPx: 4.0d).Count >= minimumInliers;
+        private static int InferFrameExtent(IEnumerable<float> coordinates) {
+            double maximum = coordinates.Where(float.IsFinite).Select(value => (double)value).DefaultIfEmpty(0).Max();
+            return (int)Math.Clamp(Math.Ceiling(maximum) + 1, 1, int.MaxValue);
         }
 
         /// <summary>
@@ -574,7 +577,7 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="stars">Target-frame stars.</param>
         /// <param name="referenceStars">Reference-frame stars.</param>
         /// <returns>A refined affine transform from reference to target coordinates.</returns>
-        private double[,] ComputeTriangleAffineTransformation(List<Point> stars, List<Point> referenceStars) {
+        private double[,] ComputeTriangleAffineTransformation(List<Point> stars, List<Point> referenceStars, CancellationToken token = default) {
             var referenceTriangles = ComputeTriangleList(referenceStars);
             var targetTriangles = ComputeTriangleList(stars);
 
@@ -591,7 +594,7 @@ namespace NINA.Plugin.Livestack.Image {
                 .Select(m => (Ref: referenceStars[m.Index1], Src: stars[m.Index2], Votes: m.Votes))
                 .ToList();
 
-            return EstimateAffineTransformation(pairs);
+            return EstimateAffineTransformation(pairs, token);
         }
 
         /// <summary>
@@ -618,48 +621,6 @@ namespace NINA.Plugin.Livestack.Image {
         }
 
         /// <summary>
-        /// Builds star correspondences by matching quad descriptors and accumulating per-star votes.
-        /// </summary>
-        /// <param name="referenceStars">Reference-frame stars.</param>
-        /// <param name="stars">Target-frame stars.</param>
-        /// <returns>Reference/target star pairs ordered by vote strength.</returns>
-        private List<(Point Ref, Point Src, int Votes)> ComputeQuadMatchedPairs(List<Point> referenceStars, List<Point> stars) {
-            var referenceCatalog = LimitPointSetForQuadMatcher(referenceStars);
-            var targetCatalog = LimitPointSetForQuadMatcher(stars);
-
-            if (referenceCatalog.Count < 4 || targetCatalog.Count < 4) {
-                return new List<(Point Ref, Point Src, int Votes)>();
-            }
-
-            var referenceQuads = BuildQuadList(referenceCatalog, MaxReferenceQuads);
-            var targetQuads = BuildQuadList(targetCatalog, MaxTargetQuads);
-            if (referenceQuads.Count == 0 || targetQuads.Count == 0) {
-                return new List<(Point Ref, Point Src, int Votes)>();
-            }
-
-            var referenceQuadIndex = BuildQuadIndex(referenceQuads);
-            int[] votingMatrix = new int[referenceCatalog.Count * targetCatalog.Count];
-            int[] bestReferenceQuadIndices = new int[MaxQuadCandidates];
-            double[] bestReferenceQuadDistances = new double[MaxQuadCandidates];
-
-            foreach (var targetQuad in targetQuads) {
-                int candidateCount = FindQuadCandidates(targetQuad, referenceQuadIndex, referenceQuads, bestReferenceQuadIndices, bestReferenceQuadDistances);
-
-                for (int candidateRank = 0; candidateRank < candidateCount; candidateRank++) {
-                    int referenceQuadIndexValue = bestReferenceQuadIndices[candidateRank];
-                    if (referenceQuadIndexValue < 0) {
-                        continue;
-                    }
-
-                    int voteWeight = MaxQuadCandidates - candidateRank;
-                    AddQuadVotes(votingMatrix, targetCatalog.Count, referenceQuads[referenceQuadIndexValue], targetQuad, voteWeight);
-                }
-            }
-
-            return ComputeQuadMatchList(votingMatrix, referenceCatalog, targetCatalog);
-        }
-
-        /// <summary>
         /// Attempts a geometry-only affine solve using local quad hashes.
         /// </summary>
         /// <remarks>
@@ -671,20 +632,20 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="referenceStars">Reference-frame stars.</param>
         /// <param name="stars">Target-frame stars.</param>
         /// <param name="affineTransformation">The solved affine transform when matching succeeds.</param>
-        /// <returns><c>true</c> when a validated quad-derived transform was found.</returns>
-        private bool TryComputeQuadAffineTransformation(List<Point> referenceStars, List<Point> stars, out double[,] affineTransformation) {
+        /// <returns><c>true</c> when a quad-derived proposal was found; ComputeAlignment performs final acceptance.</returns>
+        private bool TryComputeQuadAffineTransformation(List<Point> referenceStars, List<Point> stars, out double[,] affineTransformation, CancellationToken token = default) {
             affineTransformation = null;
             List<Point> referenceCatalog;
             List<Quad> referenceQuads;
             Dictionary<long, List<int>> referenceQuadIndex;
             if (referenceStars.Count > MaxTriangleFallbackStars) {
-                var referenceCache = GetQuadReferenceCache(referenceStars);
+                var referenceCache = GetQuadReferenceCache(referenceStars, token);
                 referenceCatalog = referenceCache.ReferenceCatalog;
                 referenceQuads = referenceCache.ReferenceQuads;
                 referenceQuadIndex = referenceCache.ReferenceQuadIndex;
             } else {
                 referenceCatalog = LimitPointSetForQuadMatcher(referenceStars);
-                referenceQuads = BuildQuadList(referenceCatalog, MaxReferenceQuads);
+                referenceQuads = BuildQuadList(referenceCatalog, MaxReferenceQuads, token);
                 referenceQuadIndex = BuildQuadIndex(referenceQuads);
             }
 
@@ -694,7 +655,7 @@ namespace NINA.Plugin.Livestack.Image {
                 return false;
             }
 
-            var targetQuads = BuildQuadList(targetCatalog, MaxTargetQuads);
+            var targetQuads = BuildQuadList(targetCatalog, MaxTargetQuads, token);
             if (referenceQuads.Count == 0 || targetQuads.Count == 0) {
                 return false;
             }
@@ -705,6 +666,7 @@ namespace NINA.Plugin.Livestack.Image {
             double[] bestReferenceQuadDistances = new double[MaxQuadCandidates];
 
             foreach (var targetQuad in targetQuads) {
+                token.ThrowIfCancellationRequested();
                 int candidateCount = FindQuadCandidates(targetQuad, referenceQuadIndex, referenceQuads, bestReferenceQuadIndices, bestReferenceQuadDistances);
 
                 for (int candidateRank = 0; candidateRank < candidateCount; candidateRank++) {
@@ -719,7 +681,7 @@ namespace NINA.Plugin.Livestack.Image {
                 }
             }
 
-            if (TryEstimateAffineFromQuadCandidates(candidateModels, referenceQuads, referenceCatalog, targetCatalog, out affineTransformation)) {
+            if (TryEstimateAffineFromQuadCandidates(candidateModels, referenceQuads, referenceCatalog, targetCatalog, out affineTransformation, token)) {
                 return true;
             }
 
@@ -728,7 +690,7 @@ namespace NINA.Plugin.Livestack.Image {
                 return false;
             }
 
-            affineTransformation = EstimateAffineTransformation(pairs);
+            affineTransformation = EstimateAffineTransformation(pairs, token);
             return true;
         }
 
@@ -760,7 +722,7 @@ namespace NINA.Plugin.Livestack.Image {
         /// </remarks>
         /// <param name="referenceStars">Reference-frame stars before quad-matcher limiting.</param>
         /// <returns>Cached quad matcher state for the reference catalog.</returns>
-        private QuadReferenceCache GetQuadReferenceCache(List<Point> referenceStars) {
+        private QuadReferenceCache GetQuadReferenceCache(List<Point> referenceStars, CancellationToken token = default) {
             ulong fingerprint = ComputePointCatalogFingerprint(referenceStars);
 
             lock (quadReferenceCacheSyncRoot) {
@@ -770,7 +732,7 @@ namespace NINA.Plugin.Livestack.Image {
             }
 
             var referenceCatalog = LimitPointSetForQuadMatcher(referenceStars);
-            var referenceQuads = BuildQuadList(referenceCatalog, MaxReferenceQuads);
+            var referenceQuads = BuildQuadList(referenceCatalog, MaxReferenceQuads, token);
             var referenceQuadIndex = BuildQuadIndex(referenceQuads);
             var newCache = new QuadReferenceCache(fingerprint, referenceCatalog, referenceQuads, referenceQuadIndex);
 
@@ -808,7 +770,7 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="stars">Catalog from which quads are built.</param>
         /// <param name="maxQuads">Hard cap to keep dense fields bounded.</param>
         /// <returns>A list of non-degenerate quad descriptors.</returns>
-        private List<Quad> BuildQuadList(List<Point> stars, int maxQuads) {
+        private List<Quad> BuildQuadList(List<Point> stars, int maxQuads, CancellationToken token = default) {
             var quads = new List<Quad>(Math.Min(maxQuads, stars.Count * 8));
             var seenQuads = new HashSet<long>();
             int nearestCapacity = Math.Min(QuadNeighborCount, Math.Max(0, stars.Count - 1));
@@ -816,6 +778,7 @@ namespace NINA.Plugin.Livestack.Image {
             double[] nearestDistances = new double[nearestCapacity];
 
             for (int centerIndex = 0; centerIndex < stars.Count && quads.Count < maxQuads; centerIndex++) {
+                token.ThrowIfCancellationRequested();
                 int nearestCount = FindNearestStarIndices(stars, centerIndex, nearestCapacity, nearestIndices, nearestDistances);
                 for (int a = 0; a < nearestCount - 2 && quads.Count < maxQuads; a++) {
                     for (int b = a + 1; b < nearestCount - 1 && quads.Count < maxQuads; b++) {
@@ -971,31 +934,6 @@ namespace NINA.Plugin.Livestack.Image {
             }
 
             return index;
-        }
-
-        /// <summary>
-        /// Enumerates the descriptor bin and adjacent bins to tolerate centroid and seeing noise.
-        /// </summary>
-        /// <param name="quad">Target quad descriptor.</param>
-        /// <returns>Quantized hash keys to probe in the reference quad index.</returns>
-        private static IEnumerable<long> GetNeighborQuadHashKeys(Quad quad) {
-            int q0 = QuantizeQuadFeature(quad.Feature0);
-            int q1 = QuantizeQuadFeature(quad.Feature1);
-            int q2 = QuantizeQuadFeature(quad.Feature2);
-            int q3 = QuantizeQuadFeature(quad.Feature3);
-            int q4 = QuantizeQuadFeature(quad.Feature4);
-
-            for (int d0 = -1; d0 <= 1; d0++) {
-                for (int d1 = -1; d1 <= 1; d1++) {
-                    for (int d2 = -1; d2 <= 1; d2++) {
-                        for (int d3 = -1; d3 <= 1; d3++) {
-                            for (int d4 = -1; d4 <= 1; d4++) {
-                                yield return PackQuadHashKey(q0 + d0, q1 + d1, q2 + d2, q3 + d3, q4 + d4);
-                            }
-                        }
-                    }
-                }
-            }
         }
 
         private static long GetQuadHashKey(Quad quad) {
@@ -1157,7 +1095,7 @@ namespace NINA.Plugin.Livestack.Image {
                 List<Quad> referenceQuads,
                 List<Point> referenceCatalog,
                 List<Point> targetCatalog,
-                out double[,] affineTransformation) {
+                out double[,] affineTransformation, CancellationToken token = default) {
             affineTransformation = null;
             double bestScore = double.NegativeInfinity;
             List<(Point Ref, Point Src, int Votes)> bestPairs = null;
@@ -1165,6 +1103,7 @@ namespace NINA.Plugin.Livestack.Image {
             var targetGrid = BuildTargetSpatialIndex(targetCatalog, inlierThresholdPx);
 
             foreach (var candidate in candidates) {
+                token.ThrowIfCancellationRequested();
                 var referenceQuad = referenceQuads[candidate.ReferenceQuadIndex];
                 var targetQuad = candidate.TargetQuad;
                 int[] permutation = new int[4];
@@ -1238,37 +1177,44 @@ namespace NINA.Plugin.Livestack.Image {
                 double inlierThresholdPx,
                 Dictionary<long, List<int>> targetGrid) {
             double thresholdSquared = inlierThresholdPx * inlierThresholdPx;
-            var inliers = new List<(Point Ref, Point Src, int Votes)>();
-
-            foreach (var referenceStar in referenceCatalog) {
-                var projected = ApplyAffine(referenceStar, model);
-                int bestTargetIndex = -1;
-                double bestDistanceSquared = thresholdSquared;
+            int[] bestReference = Enumerable.Repeat(-1, targetCatalog.Count).ToArray();
+            double[] bestDistances = Enumerable.Repeat(thresholdSquared, targetCatalog.Count).ToArray();
+            for (int referenceIndex = 0; referenceIndex < referenceCatalog.Count; referenceIndex++) {
+                Point projected = ApplyAffine(referenceCatalog[referenceIndex], model);
+                if (!float.IsFinite(projected.X) || !float.IsFinite(projected.Y)) {
+                    continue;
+                }
+                int bestTarget = -1;
+                double nearestDistance = thresholdSquared;
                 int cellX = (int)Math.Floor(projected.X / inlierThresholdPx);
                 int cellY = (int)Math.Floor(projected.Y / inlierThresholdPx);
-
                 for (int y = cellY - 1; y <= cellY + 1; y++) {
                     for (int x = cellX - 1; x <= cellX + 1; x++) {
-                        if (!targetGrid.TryGetValue(PackSpatialGridKey(x, y), out List<int> targetIndices)) {
+                        if (!targetGrid.TryGetValue(PackSpatialGridKey(x, y), out List<int> indices)) {
                             continue;
                         }
-
-                        foreach (int targetIndex in targetIndices) {
-                            double distanceSquared = DistanceSquared(projected, targetCatalog[targetIndex]);
-                            if (distanceSquared < bestDistanceSquared) {
-                                bestDistanceSquared = distanceSquared;
-                                bestTargetIndex = targetIndex;
+                        foreach (int targetIndex in indices) {
+                            double distance = DistanceSquared(projected, targetCatalog[targetIndex]);
+                            if (distance < nearestDistance) {
+                                nearestDistance = distance;
+                                bestTarget = targetIndex;
                             }
                         }
                     }
                 }
-
-                if (bestTargetIndex >= 0) {
-                    inliers.Add((referenceStar, targetCatalog[bestTargetIndex], 1));
+                // A target contributes once, using only its closest proposed reference star.
+                if (bestTarget >= 0 && nearestDistance < bestDistances[bestTarget]) {
+                    bestReference[bestTarget] = referenceIndex;
+                    bestDistances[bestTarget] = nearestDistance;
                 }
             }
-
-            return inliers;
+            List<(Point Ref, Point Src, int Votes)> pairs = new();
+            for (int i = 0; i < bestReference.Length; i++) {
+                if (bestReference[i] >= 0) {
+                    pairs.Add((referenceCatalog[bestReference[i]], targetCatalog[i], 1));
+                }
+            }
+            return pairs;
         }
 
         /// <summary>
@@ -1449,13 +1395,14 @@ namespace NINA.Plugin.Livestack.Image {
         /// </summary>
         /// <param name="pairs">Candidate reference-to-source star correspondences.</param>
         /// <returns>A refined affine transform from reference to source coordinates.</returns>
-        private double[,] EstimateAffineTransformation(List<(Point Ref, Point Src, int Votes)> pairs) {
+        private double[,] EstimateAffineTransformation(List<(Point Ref, Point Src, int Votes)> pairs, CancellationToken token = default) {
+            token.ThrowIfCancellationRequested();
             if (pairs.Count < 3)
                 throw new InvalidOperationException("Not enough matches for affine estimation.");
 
             if (pairs.Count < 8) {
-                // Sparse frames can still produce a valid affine solution even when there
-                // are not enough correspondences to satisfy the RANSAC inlier threshold.
+                // This is only a proposal for full-catalog validation, never an accepted alignment.
+                // Final acceptance still requires at least eight independent, distributed matches.
                 return RefineAffineLeastSquares(pairs, Enumerable.Range(0, pairs.Count).ToList());
             }
 
@@ -1467,7 +1414,7 @@ namespace NINA.Plugin.Livestack.Image {
                 pairs,
                 iterations: ransacIterations,
                 inlierThresholdPx: 5.0,
-                minInliers: minInliers);
+                minInliers: minInliers, token: token);
 
             // Robustly estimate residual scale from inliers
             var residuals = ComputeResiduals(model1, pairs, inliers1);
@@ -1481,14 +1428,14 @@ namespace NINA.Plugin.Livestack.Image {
                 pairs,
                 iterations: ransacIterations,
                 inlierThresholdPx: thr,
-                minInliers: minInliers);
+                minInliers: minInliers, token: token);
 
             // Final refinement on inliers
             return RefineAffineLeastSquares(pairs, inliers2);
         }
 
         /// <summary>
-        /// Runs weighted affine RANSAC and adapts the iteration count as stronger inlier ratios appear.
+        /// Runs bounded affine RANSAC and prioritizes geometric consensus over vote totals.
         /// </summary>
         /// <param name="pairs">Candidate reference-to-source star correspondences.</param>
         /// <param name="iterations">Maximum number of RANSAC samples.</param>
@@ -1499,11 +1446,11 @@ namespace NINA.Plugin.Livestack.Image {
                 List<(Point Ref, Point Src, int Votes)> pairs,
                 int iterations,
                 double inlierThresholdPx,
-                int minInliers) {
+                int minInliers, CancellationToken token = default) {
             if (pairs.Count < 3)
                 throw new ArgumentException("Need at least 3 correspondences.");
 
-            var rng = Random.Shared;
+            var rng = new Random(unchecked((int)ComputePointCatalogFingerprint(pairs.Select(pair => pair.Ref).ToList())));
             double bestScore = double.NegativeInfinity;
             double[,] bestModel = null;
             List<int> bestInliers = new();
@@ -1514,21 +1461,22 @@ namespace NINA.Plugin.Livestack.Image {
             const double confidence = 0.995d;
 
             for (int it = 0; it < targetIterations; it++) {
+                token.ThrowIfCancellationRequested();
                 // sample 3 unique indices
                 int i0 = rng.Next(pairs.Count);
                 int i1 = rng.Next(pairs.Count);
                 int i2 = rng.Next(pairs.Count);
-                if (i1 == i0 || i2 == i0 || i2 == i1) { it--; continue; }
+                if (i1 == i0 || i2 == i0 || i2 == i1) { continue; }
 
-                // Optional: reject degenerate samples (nearly collinear in either set)
-                if (IsDegenerateTriplet(pairs[i0].Ref, pairs[i1].Ref, pairs[i2].Ref)) { it--; continue; }
-                if (IsDegenerateTriplet(pairs[i0].Src, pairs[i1].Src, pairs[i2].Src)) { it--; continue; }
+                // Every attempt consumes the budget, including degenerate or duplicate samples.
+                if (IsDegenerateTriplet(pairs[i0].Ref, pairs[i1].Ref, pairs[i2].Ref)) { continue; }
+                if (IsDegenerateTriplet(pairs[i0].Src, pairs[i1].Src, pairs[i2].Src)) { continue; }
 
                 // Fit affine from exactly 3 pairs
                 var model = FitAffineFrom3(pairs[i0], pairs[i1], pairs[i2]);
                 if (model == null || !IsPlausibleAffineModel(model)) continue;
 
-                // Score: count inliers + optionally sum of vote-weights for inliers
+                // Prefer more geometric inliers; residuals only break ties between equal counts.
                 var inliers = new List<int>(capacity: pairs.Count);
                 double score = 0;
 
@@ -1543,11 +1491,9 @@ namespace NINA.Plugin.Livestack.Image {
                     if (e2 <= thr2) {
                         inliers.Add(i);
 
-                        // simple score: inlier count
-                        score += 1.0;
+                        // The total residual penalty stays below one inlier.
+                        score += 1.0 - e2 / (thr2 * pairs.Count + 1);
 
-                        // weight by triangle votes (often improves stability)
-                        score += 0.1 * p.Votes;
                     }
                 }
 
@@ -1713,324 +1659,56 @@ namespace NINA.Plugin.Livestack.Image {
             return angleDeg >= 160 && angleDeg <= 200;
         }
 
-        /// <summary>
-        /// Applies an affine transform to normalized floating-point image data.
-        /// </summary>
-        /// <param name="sourceImageData">Source image pixels in row-major order.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
-        /// <returns>Transformed normalized floating-point image data.</returns>
+        /// <summary>Resamples an incoming frame into reference coordinates with bilinear interpolation.</summary>
         public float[] ApplyAffineTransformation(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            float[] transformedImageData = new float[width * height];
-            ApplyAffineTransformationInto(sourceImageData, transformedImageData, width, height, affineMatrix, flippedImage);
-            return transformedImageData;
+            float[] destination = new float[AffineResampler.GetLength(width, height)];
+            ApplyAffineTransformationInto(sourceImageData, destination, width, height, affineMatrix, flippedImage);
+            return destination;
         }
 
-        /// <summary>
-        /// Applies an affine transform to normalized floating-point image data into a caller-owned destination buffer.
-        /// </summary>
-        /// <param name="sourceImageData">Source image pixels in row-major order.</param>
-        /// <param name="destinationImageData">Destination buffer that receives transformed normalized pixels.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
         public void ApplyAffineTransformationInto(float[] sourceImageData, float[] destinationImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            ValidateAffineBuffers(sourceImageData, destinationImageData, width, height);
-            if (ReferenceEquals(sourceImageData, destinationImageData)) {
-                throw new ArgumentException("Source and destination buffers must not be the same instance.", nameof(destinationImageData));
-            }
-
-            Array.Clear(destinationImageData, 0, destinationImageData.Length);
-            var (a, b, tx, c, d, ty) = GetAffineCoefficients(affineMatrix);
-
-            ProcessAffineRows(width, height, y => {
-                int rowOffset = y * width;
-                double srcX = (b * y) + tx;
-                double srcY = (d * y) + ty;
-
-                for (int x = 0; x < width; x++) {
-                    int newX = (int)(float)srcX;
-                    int newY = (int)(float)srcY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
-                    }
-
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        destinationImageData[rowOffset + x] = sourceImageData[newY * width + newX];
-                    }
-
-                    srcX += a;
-                    srcY += c;
-                }
-            });
+            AffineResampler.Transform(sourceImageData, destinationImageData, width, height, affineMatrix, flippedImage);
         }
 
-        /// <summary>
-        /// Applies an affine transform and folds the sampled image directly into an existing average stack.
-        /// </summary>
-        /// <param name="sourceImageData">Source image pixels in row-major order.</param>
-        /// <param name="stackImageData">Existing normalized stack buffer that is updated in place.</param>
-        /// <param name="stackImageCount">Number of images currently represented by <paramref name="stackImageData"/>.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
+        /// <summary>Compatibility overload for stacks with a uniform prior contribution count.</summary>
         public void ApplyAffineTransformationAndStack(float[] sourceImageData, float[] stackImageData, int stackImageCount, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            ValidateAffineBuffers(sourceImageData, stackImageData, width, height);
-            if (ReferenceEquals(sourceImageData, stackImageData)) {
-                throw new ArgumentException("Source and stack buffers must not be the same instance.", nameof(stackImageData));
-            }
-
-            ApplyAffineTransformationAndStackCore(sourceImageData, stackImageData, stackImageCount, width, height, affineMatrix, flippedImage);
+            AffineResampler.Accumulate(sourceImageData, stackImageData, null, stackImageCount, width, height, affineMatrix, flippedImage);
         }
 
-        /// <summary>
-        /// Applies an affine transform to unsigned 16-bit image data and normalizes the output to floats.
-        /// </summary>
-        /// <param name="sourceImageData">Source image pixels in row-major order.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
-        /// <returns>Transformed normalized floating-point image data.</returns>
+        public void ApplyAffineTransformationAndStack(float[] sourceImageData, float[] stackImageData, uint[] contributionCounts, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
+            ArgumentNullException.ThrowIfNull(contributionCounts);
+            AffineResampler.Accumulate(sourceImageData, stackImageData, contributionCounts, 0, width, height, affineMatrix, flippedImage);
+        }
+
         public float[] ApplyAffineTransformation(ushort[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            float[] transformedImageData = new float[width * height];
-            ApplyAffineTransformationInto(sourceImageData, transformedImageData, width, height, affineMatrix, flippedImage);
-            return transformedImageData;
+            float[] destination = new float[AffineResampler.GetLength(width, height)];
+            ApplyAffineTransformationInto(sourceImageData, destination, width, height, affineMatrix, flippedImage);
+            return destination;
         }
 
-        /// <summary>
-        /// Applies an affine transform to unsigned 16-bit image data and writes normalized pixels into a caller-owned buffer.
-        /// </summary>
-        /// <param name="sourceImageData">Source image pixels in row-major order.</param>
-        /// <param name="destinationImageData">Destination buffer that receives transformed normalized pixels.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
         public void ApplyAffineTransformationInto(ushort[] sourceImageData, float[] destinationImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            ValidateAffineBuffers(sourceImageData, destinationImageData, width, height);
-            Array.Clear(destinationImageData, 0, destinationImageData.Length);
-            var (a, b, tx, c, d, ty) = GetAffineCoefficients(affineMatrix);
-
-            ProcessAffineRows(width, height, y => {
-                int rowOffset = y * width;
-                double srcX = (b * y) + tx;
-                double srcY = (d * y) + ty;
-
-                for (int x = 0; x < width; x++) {
-                    int newX = (int)(float)srcX;
-                    int newY = (int)(float)srcY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
-                    }
-
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        destinationImageData[rowOffset + x] = sourceImageData[newY * width + newX] / (float)ushort.MaxValue;
-                    }
-
-                    srcX += a;
-                    srcY += c;
-                }
-            });
+            AffineResampler.Transform(sourceImageData, destinationImageData, width, height, affineMatrix, flippedImage);
         }
 
-        /// <summary>
-        /// Applies an affine transform to unsigned 16-bit image data and folds normalized samples directly into an average stack.
-        /// </summary>
-        /// <param name="sourceImageData">Source image pixels in row-major order.</param>
-        /// <param name="stackImageData">Existing normalized stack buffer that is updated in place.</param>
-        /// <param name="stackImageCount">Number of images currently represented by <paramref name="stackImageData"/>.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
+        /// <summary>Compatibility overload for stacks with a uniform prior contribution count.</summary>
         public void ApplyAffineTransformationAndStack(ushort[] sourceImageData, float[] stackImageData, int stackImageCount, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            ValidateAffineBuffers(sourceImageData, stackImageData, width, height);
-            ApplyAffineTransformationAndStackCore(sourceImageData, stackImageData, stackImageCount, width, height, affineMatrix, flippedImage);
+            AffineResampler.Accumulate(sourceImageData, stackImageData, null, stackImageCount, width, height, affineMatrix, flippedImage);
         }
 
-        /// <summary>
-        /// Applies an affine transform to normalized floats and converts the result to unsigned 16-bit pixels.
-        /// </summary>
-        /// <param name="sourceImageData">Source normalized image pixels in row-major order.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
-        /// <returns>Transformed unsigned 16-bit image data.</returns>
+        public void ApplyAffineTransformationAndStack(ushort[] sourceImageData, float[] stackImageData, uint[] contributionCounts, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
+            ArgumentNullException.ThrowIfNull(contributionCounts);
+            AffineResampler.Accumulate(sourceImageData, stackImageData, contributionCounts, 0, width, height, affineMatrix, flippedImage);
+        }
+
         public ushort[] ApplyAffineTransformationAsUshort(float[] sourceImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            ushort[] transformedImageData = new ushort[width * height];
-            ApplyAffineTransformationAsUshortInto(sourceImageData, transformedImageData, width, height, affineMatrix, flippedImage);
-            return transformedImageData;
+            ushort[] destination = new ushort[AffineResampler.GetLength(width, height)];
+            ApplyAffineTransformationAsUshortInto(sourceImageData, destination, width, height, affineMatrix, flippedImage);
+            return destination;
         }
 
-        /// <summary>
-        /// Applies an affine transform to normalized floats and writes unsigned 16-bit pixels into a caller-owned buffer.
-        /// </summary>
-        /// <param name="sourceImageData">Source normalized image pixels in row-major order.</param>
-        /// <param name="destinationImageData">Destination buffer that receives transformed unsigned 16-bit pixels.</param>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="affineMatrix">Affine matrix used to sample the source image.</param>
-        /// <param name="flippedImage">Whether to mirror sample coordinates for a flipped frame.</param>
         public void ApplyAffineTransformationAsUshortInto(float[] sourceImageData, ushort[] destinationImageData, int width, int height, double[,] affineMatrix, bool flippedImage = false) {
-            ValidateAffineBuffers(sourceImageData, destinationImageData, width, height);
-            Array.Clear(destinationImageData, 0, destinationImageData.Length);
-            var (a, b, tx, c, d, ty) = GetAffineCoefficients(affineMatrix);
-
-            ProcessAffineRows(width, height, y => {
-                int rowOffset = y * width;
-                double srcX = (b * y) + tx;
-                double srcY = (d * y) + ty;
-
-                for (int x = 0; x < width; x++) {
-                    int newX = (int)(float)srcX;
-                    int newY = (int)(float)srcY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
-                    }
-
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        float newPixelValue = sourceImageData[newY * width + newX];
-                        destinationImageData[rowOffset + x] = (ushort)Math.Clamp(newPixelValue * ushort.MaxValue, 0, ushort.MaxValue);
-                    }
-
-                    srcX += a;
-                    srcY += c;
-                }
-            });
+            AffineResampler.Transform(sourceImageData, destinationImageData, width, height, affineMatrix, flippedImage);
         }
-
-        private static void ApplyAffineTransformationAndStackCore(float[] sourceImageData, float[] stackImageData, int stackImageCount, int width, int height, double[,] affineMatrix, bool flippedImage) {
-            if (stackImageCount < 1) {
-                throw new ArgumentOutOfRangeException(nameof(stackImageCount), "Stack image count must be at least 1.");
-            }
-
-            float currentCount = stackImageCount;
-            float nextCount = stackImageCount + 1f;
-            var (a, b, tx, c, d, ty) = GetAffineCoefficients(affineMatrix);
-
-            ProcessAffineRows(width, height, y => {
-                int rowOffset = y * width;
-                double srcX = (b * y) + tx;
-                double srcY = (d * y) + ty;
-
-                for (int x = 0; x < width; x++) {
-                    int newX = (int)(float)srcX;
-                    int newY = (int)(float)srcY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
-                    }
-
-                    float transformedPixel = 0f;
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        transformedPixel = sourceImageData[newY * width + newX];
-                    }
-
-                    int destinationIndex = rowOffset + x;
-                    stackImageData[destinationIndex] = ((currentCount * stackImageData[destinationIndex]) + transformedPixel) / nextCount;
-
-                    srcX += a;
-                    srcY += c;
-                }
-            });
-        }
-
-        private static void ApplyAffineTransformationAndStackCore(ushort[] sourceImageData, float[] stackImageData, int stackImageCount, int width, int height, double[,] affineMatrix, bool flippedImage) {
-            if (stackImageCount < 1) {
-                throw new ArgumentOutOfRangeException(nameof(stackImageCount), "Stack image count must be at least 1.");
-            }
-
-            float currentCount = stackImageCount;
-            float nextCount = stackImageCount + 1f;
-            var (a, b, tx, c, d, ty) = GetAffineCoefficients(affineMatrix);
-
-            ProcessAffineRows(width, height, y => {
-                int rowOffset = y * width;
-                double srcX = (b * y) + tx;
-                double srcY = (d * y) + ty;
-
-                for (int x = 0; x < width; x++) {
-                    int newX = (int)(float)srcX;
-                    int newY = (int)(float)srcY;
-                    if (flippedImage) {
-                        newX = width - 1 - newX;
-                        newY = height - 1 - newY;
-                    }
-
-                    float transformedPixel = 0f;
-                    if ((uint)newX < (uint)width && (uint)newY < (uint)height) {
-                        transformedPixel = sourceImageData[newY * width + newX] / (float)ushort.MaxValue;
-                    }
-
-                    int destinationIndex = rowOffset + x;
-                    stackImageData[destinationIndex] = ((currentCount * stackImageData[destinationIndex]) + transformedPixel) / nextCount;
-
-                    srcX += a;
-                    srcY += c;
-                }
-            });
-        }
-
-        private static void ValidateAffineBuffers(Array sourceImageData, Array destinationImageData, int width, int height) {
-            if (sourceImageData == null) {
-                throw new ArgumentNullException(nameof(sourceImageData));
-            }
-
-            if (destinationImageData == null) {
-                throw new ArgumentNullException(nameof(destinationImageData));
-            }
-
-            int expectedLength = checked(width * height);
-            if (sourceImageData.Length != expectedLength) {
-                throw new ArgumentException("Source image data length does not match width and height.", nameof(sourceImageData));
-            }
-
-            if (destinationImageData.Length != expectedLength) {
-                throw new ArgumentException("Destination image data length does not match width and height.", nameof(destinationImageData));
-            }
-        }
-
-        /// <summary>
-        /// Extracts affine coefficients into a tuple that is cheap to reuse inside row loops.
-        /// </summary>
-        /// <param name="affineMatrix">Affine matrix to unpack.</param>
-        /// <returns>Matrix coefficients in row-major affine order.</returns>
-        private static (double A, double B, double Tx, double C, double D, double Ty) GetAffineCoefficients(double[,] affineMatrix) {
-            return (
-                affineMatrix[0, 0],
-                affineMatrix[0, 1],
-                affineMatrix[0, 2],
-                affineMatrix[1, 0],
-                affineMatrix[1, 1],
-                affineMatrix[1, 2]);
-        }
-
-        /// <summary>
-        /// Runs image-row processing sequentially for small frames and in parallel for larger frames.
-        /// </summary>
-        /// <param name="width">Image width in pixels.</param>
-        /// <param name="height">Image height in pixels.</param>
-        /// <param name="processRow">Action that processes one row index.</param>
-        private static void ProcessAffineRows(int width, int height, Action<int> processRow) {
-            const int minimumPixelsForParallel = 256 * 256;
-            if (Environment.ProcessorCount > 1 && height > 1 && (long)width * height >= minimumPixelsForParallel) {
-                Parallel.For(0, height, processRow);
-            } else {
-                for (int y = 0; y < height; y++) {
-                    processRow(y);
-                }
-            }
-        }
-
         /// <summary>
         /// Solves the least-squares affine matrix that maps source points to target points.
         /// </summary>
@@ -2038,112 +1716,39 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="targetPoints">Target coordinate array with one x/y pair per row.</param>
         /// <returns>A 3x3 affine transformation matrix.</returns>
         private double[,] ComputeAffineTransformationMatrix(double[,] sourcePoints, double[,] targetPoints) {
-            int numPoints = sourcePoints.GetLength(0);
-            if (numPoints < 3) {
-                throw new ArgumentException("At least 3 points are required for affine transformation.");
+            int count = sourcePoints.GetLength(0);
+            if (count < 3) {
+                throw new InvalidOperationException("At least three pairs are needed to propose an affine model.");
             }
-
-            var A = DenseMatrix.OfArray(new double[numPoints * 2, 6]);
-            var B = DenseVector.OfArray(new double[numPoints * 2]);
-
-            for (int i = 0; i < numPoints; i++) {
-                A[i * 2, 0] = sourcePoints[i, 0];
-                A[i * 2, 1] = sourcePoints[i, 1];
-                A[i * 2, 2] = 1;
-                A[i * 2, 3] = 0;
-                A[i * 2, 4] = 0;
-                A[i * 2, 5] = 0;
-
-                A[i * 2 + 1, 0] = 0;
-                A[i * 2 + 1, 1] = 0;
-                A[i * 2 + 1, 2] = 0;
-                A[i * 2 + 1, 3] = sourcePoints[i, 0];
-                A[i * 2 + 1, 4] = sourcePoints[i, 1];
-                A[i * 2 + 1, 5] = 1;
-
-                B[i * 2] = targetPoints[i, 0];
-                B[i * 2 + 1] = targetPoints[i, 1];
+            double meanX = 0, meanY = 0, meanU = 0, meanV = 0;
+            for (int i = 0; i < count; i++) {
+                meanX += sourcePoints[i, 0] / count;
+                meanY += sourcePoints[i, 1] / count;
+                meanU += targetPoints[i, 0] / count;
+                meanV += targetPoints[i, 1] / count;
             }
-
-            // Solve for X using least squares
-            var AtA = A.TransposeThisAndMultiply(A); // Equivalent to At * A
-            var AtB = A.TransposeThisAndMultiply(B); // Equivalent to At * B
-            var X = AtA.Solve(AtB); // Solve the system AtA * X = AtB
-
-            return new double[3, 3] {
-                { X[0], X[1], X[2] },
-                { X[3], X[4], X[5] },
+            double scale = 0;
+            for (int i = 0; i < count; i++) {
+                scale += Math.Pow(sourcePoints[i, 0] - meanX, 2) + Math.Pow(sourcePoints[i, 1] - meanY, 2);
+            }
+            scale = Math.Sqrt(scale / count);
+            if (!double.IsFinite(scale) || scale < 1e-6) {
+                throw new InvalidOperationException("Degenerate affine correspondences.");
+            }
+            DenseMatrix design = DenseMatrix.Create(count, 3, (i, j) => j == 0 ? (sourcePoints[i, 0] - meanX) / scale : j == 1 ? (sourcePoints[i, 1] - meanY) / scale : 1);
+            DenseMatrix target = DenseMatrix.Create(count, 2, (i, j) => targetPoints[i, j] - (j == 0 ? meanU : meanV));
+            var decomposition = design.Svd();
+            if (decomposition.S[2] <= decomposition.S[0] * 1e-6) {
+                throw new InvalidOperationException("Nearly collinear affine correspondences.");
+            }
+            var solution = decomposition.Solve(target);
+            double a = solution[0, 0] / scale, b = solution[1, 0] / scale;
+            double c = solution[0, 1] / scale, d = solution[1, 1] / scale;
+            return new double[,] {
+                { a, b, meanU + solution[2, 0] - a * meanX - b * meanY },
+                { c, d, meanV + solution[2, 1] - c * meanX - d * meanY },
                 { 0, 0, 1 }
             };
-        }
-
-        private Point ApplyAffineMatrix(int x, int y, double[,] matrix) {
-            double newX = matrix[0, 0] * x + matrix[0, 1] * y + matrix[0, 2];
-            double newY = matrix[1, 0] * x + matrix[1, 1] * y + matrix[1, 2];
-
-            return new Point((float)newX, (float)newY);
-        }
-
-        private float GetInterpolatedPixelValue(int x, int y, float[] imageData, int width, int height) {
-            if (x < 0 || y < 0 || x >= width || y >= height) {
-                return 0; // Out-of-bounds pixels return 0 (or any appropriate default value)
-            }
-
-            // Bilinear interpolation
-            int x0 = x;
-            int y0 = y;
-            int x1 = Math.Min(x0 + 1, width - 1);
-            int y1 = Math.Min(y0 + 1, height - 1);
-
-            // Get pixel values for interpolation
-            float c00 = imageData[y0 * width + x0];
-            float c01 = imageData[y0 * width + x1];
-            float c10 = imageData[y1 * width + x0];
-            float c11 = imageData[y1 * width + x1];
-
-            float xFraction = x - x0;
-            float yFraction = y - y0;
-
-            // Calculate the interpolated pixel value
-            float interpolatedValue = (float)(
-                c00 * (1 - xFraction) * (1 - yFraction) +
-                c01 * xFraction * (1 - yFraction) +
-                c10 * (1 - xFraction) * yFraction +
-                c11 * xFraction * yFraction
-            );
-
-            return interpolatedValue;
-        }
-
-        private float GetInterpolatedPixelValue(int x, int y, ushort[] imageData, int width, int height) {
-            if (x < 0 || y < 0 || x >= width || y >= height) {
-                return 0; // Out-of-bounds pixels return 0 (or any appropriate default value)
-            }
-
-            // Bilinear interpolation
-            int x0 = x;
-            int y0 = y;
-            int x1 = Math.Min(x0 + 1, width - 1);
-            int y1 = Math.Min(y0 + 1, height - 1);
-
-            // Get pixel values for interpolation
-            float c00 = imageData[y0 * width + x0] / (float)ushort.MaxValue;
-            float c01 = imageData[y0 * width + x1] / (float)ushort.MaxValue;
-            float c10 = imageData[y1 * width + x0] / (float)ushort.MaxValue;
-            float c11 = imageData[y1 * width + x1] / (float)ushort.MaxValue;
-
-            float xFraction = x - x0;
-            float yFraction = y - y0;
-
-            // Calculate the interpolated pixel value
-            float interpolatedValue = (float)(
-                c00 * (1 - xFraction) * (1 - yFraction) +
-                c01 * xFraction * (1 - yFraction) +
-                c10 * (1 - xFraction) * yFraction +
-                c11 * xFraction * yFraction
-            );
-
-            return interpolatedValue;
         }
 
         /// <summary>
@@ -2474,21 +2079,7 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="model">Affine matrix to validate.</param>
         /// <returns><c>true</c> when the matrix is plausible for live-stack frame alignment.</returns>
         private bool IsPlausibleAffineModel(double[,] model) {
-            double a = model[0, 0];
-            double b = model[0, 1];
-            double c = model[1, 0];
-            double d = model[1, 1];
-
-            double firstColumnScale = Math.Sqrt((a * a) + (c * c));
-            double secondColumnScale = Math.Sqrt((b * b) + (d * d));
-            double determinant = (a * d) - (b * c);
-
-            return firstColumnScale > 0.75d
-                && firstColumnScale < 1.25d
-                && secondColumnScale > 0.75d
-                && secondColumnScale < 1.25d
-                && Math.Abs(determinant) > 0.6d
-                && Math.Abs(determinant) < 1.4d;
+            return AlignmentGeometry.IsPlausible(model);
         }
 
         /// <summary>

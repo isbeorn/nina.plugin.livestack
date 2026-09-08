@@ -164,17 +164,9 @@ namespace nina.plugin.livestack.benchmark {
         private float[] alignArray;
         private IRenderedImage alignImage;
 
-        [Benchmark(Baseline = true)]
-        public async Task Baseline_Alignment() {
-            await Alignment(ImageTransformer.Instance);
-        }
-
-        [Benchmark()]
-        public async Task NewTransformer_Alignment() {
-            await Alignment(ImageTransformer2.Instance);
-        }
-
-        private async Task Alignment(IImageTransformer transformer) {
+        [Benchmark]
+        public void AlignFrame() {
+            IImageTransformer transformer = ImageTransformer2.Instance;
             var referenceStars = transformer.GetStars(referenceImage.RawImageData.StarDetectionAnalysis.StarList, referenceImage.RawImageData.Properties.Width, referenceImage.RawImageData.Properties.Height);
 
             var stars = transformer.GetStars(alignImage.RawImageData.StarDetectionAnalysis.StarList, alignImage.RawImageData.Properties.Width, alignImage.RawImageData.Properties.Height);

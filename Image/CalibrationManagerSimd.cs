@@ -6,7 +6,7 @@ using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
+using System.Threading;
 
 namespace NINA.Plugin.Livestack.Image {
 
@@ -14,18 +14,23 @@ namespace NINA.Plugin.Livestack.Image {
 
         internal sealed class CalibrationMaster : IDisposable {
 
-            public CalibrationMaster(CalibrationFrameMeta meta) {
+            public CalibrationMaster(CalibrationFrameMeta meta, bool cacheRows) {
                 Meta = meta ?? throw new ArgumentNullException(nameof(meta));
 
                 _width = meta.Width;
                 _height = meta.Height;
 
-                // Ideal layout: one contiguous backing store for the entire master frame.
-                // This eliminates thousands of per-row arrays and improves locality for row-by-row access.
-                _data = new float[checked(_width * _height)];
-                _rowLoaded = new bool[_height];
-
                 _imageReader = new CFitsioFITSReader(meta.Path);
+                try {
+                    if (_imageReader.Width != _width || _imageReader.Height != _height) {
+                        throw new ArgumentException("Calibration master dimensions differ from its metadata.", nameof(meta));
+                    }
+                    _rowLoaded = cacheRows ? new bool[_height] : null;
+                    _data = cacheRows ? GC.AllocateUninitializedArray<float>(checked(_width * _height)) : ArrayPool<float>.Shared.Rent(_width);
+                } catch {
+                    _imageReader.Dispose();
+                    throw;
+                }
             }
 
             public CalibrationFrameMeta Meta { get; }
@@ -34,20 +39,30 @@ namespace NINA.Plugin.Livestack.Image {
             private readonly int _width;
             private readonly int _height;
 
-            // Contiguous master data backing store.
-            private readonly float[] _data;
+            // A reusable row by default, or a contiguous image when caching is explicitly requested.
+            private float[] _data;
+            private int _currentRow = -1;
 
-            // Tracks which rows have been loaded into _data.
+            // Null for streaming mode; otherwise tracks rows loaded into the full image.
             private readonly bool[] _rowLoaded;
 
             /// <summary>
             /// Returns a read-only view of the requested row.
-            /// Loads the row lazily on first access by reading directly into the backing store.
+            /// In streaming mode the view is valid until another row is read or the master is disposed.
             /// </summary>
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             public ReadOnlySpan<float> ReadPixelRow(int row) {
+                ObjectDisposedException.ThrowIf(_data == null, this);
                 if ((uint)row >= (uint)_height)
                     throw new ArgumentOutOfRangeException(nameof(row));
+
+                if (_rowLoaded == null) {
+                    if (_currentRow != row) {
+                        _imageReader.ReadPixelRowAsFloat(row, _data.AsSpan(0, _width));
+                        _currentRow = row;
+                    }
+                    return _data.AsSpan(0, _width);
+                }
 
                 int offset = row * _width;
 
@@ -60,16 +75,18 @@ namespace NINA.Plugin.Livestack.Image {
                 return _data.AsSpan(offset, _width);
             }
 
-            /// <summary>
-            /// Clears the loaded-row markers (data remains allocated).
-            /// Useful for cold-cache benchmarks without reallocating the backing store.
-            /// </summary>
-            public void ClearLoadedFlags() => Array.Clear(_rowLoaded, 0, _rowLoaded.Length);
-
             public void Dispose() {
+                float[] data = _data;
+                if (data == null) {
+                    return;
+                }
+                _data = null;
                 try {
                     _imageReader.Dispose();
-                } catch {
+                } finally {
+                    if (_rowLoaded == null) {
+                        ArrayPool<float>.Shared.Return(data);
+                    }
                 }
             }
         }
@@ -77,9 +94,15 @@ namespace NINA.Plugin.Livestack.Image {
         public IList<CalibrationFrameMeta> FlatLibrary { get; } = new List<CalibrationFrameMeta>();
         public IList<CalibrationFrameMeta> DarkLibrary { get; } = new List<CalibrationFrameMeta>();
         public IList<CalibrationFrameMeta> BiasLibrary { get; } = new List<CalibrationFrameMeta>();
-        private Dictionary<CalibrationFrameMeta, CalibrationMaster> masterCache = new Dictionary<CalibrationFrameMeta, CalibrationMaster>();
+        private readonly Dictionary<CalibrationFrameMeta, CalibrationMaster> masterCache = new Dictionary<CalibrationFrameMeta, CalibrationMaster>();
 
-        public CalibrationManagerSimd() {
+        private readonly bool cacheMasterRows;
+
+        public CalibrationManagerSimd() : this(false) {
+        }
+
+        public CalibrationManagerSimd(bool cacheMasterRows) {
+            this.cacheMasterRows = cacheMasterRows;
         }
 
         public void RegisterBiasMaster(CalibrationFrameMeta calibrationFrameMeta) {
@@ -100,78 +123,38 @@ namespace NINA.Plugin.Livestack.Image {
             }
         }
 
-        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset, string inFilter, bool isBayered) {
-            var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
-            CalibrationFrameMeta meta = null;
-            if (BiasLibrary?.Count > 0) {
-                meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.Width == width && x.Height == height);
-                if (meta == null) {
-                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height);
-                }
-                if (meta == null) {
-                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height);
-                }
-                if (meta == null) {
-                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
-                }
-            }
-            if (meta == null) {
-                return null;
-            }
-            if (masterCache.ContainsKey(meta)) {
-                return masterCache[meta];
-            }
-            var master = new CalibrationMaster(meta);
-            masterCache.Add(meta, master);
-            return master;
+        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset) {
+            CalibrationFrameMeta meta =
+                BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.Width == width && x.Height == height)
+                ?? BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height)
+                ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height)
+                ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
+            return GetOrCreateMaster(meta);
         }
 
-        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
-            var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
-            CalibrationFrameMeta meta = null;
-            if (DarkLibrary?.Count > 0) {
-                meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
-                if (meta == null) {
-                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height);
-                }
-                if (meta == null) {
-                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height);
-                }
-                if (meta == null) {
-                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
-                }
-            }
-            if (meta == null) {
-                return null;
-            }
-            if (masterCache.ContainsKey(meta)) {
-                return masterCache[meta];
-            }
-            if (meta == null) {
-                return null;
-            }
-            var master = new CalibrationMaster(meta);
-            masterCache.Add(meta, master);
-            return master;
+        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset) {
+            CalibrationFrameMeta meta =
+                DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height)
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height)
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
+            return GetOrCreateMaster(meta);
         }
 
-        private CalibrationMaster GetFlatMaster(int width, int height, string inFilter, bool isBayered) {
-            var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
-            CalibrationFrameMeta meta = null;
-            if (FlatLibrary?.Count > 0) {
-                meta = FlatLibrary.FirstOrDefault(x => x.Filter == filter && x.Width == width && x.Height == height);
-            }
+        private CalibrationMaster GetFlatMaster(int width, int height, string inFilter) {
+            string filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
+            CalibrationFrameMeta meta = FlatLibrary.FirstOrDefault(x => x.Filter == filter && x.Width == width && x.Height == height);
+            return GetOrCreateMaster(meta);
+        }
+
+        private CalibrationMaster GetOrCreateMaster(CalibrationFrameMeta meta) {
             if (meta == null) {
                 return null;
             }
-            if (masterCache.ContainsKey(meta)) {
-                return masterCache[meta];
+            if (!masterCache.TryGetValue(meta, out CalibrationMaster master)) {
+                master = new CalibrationMaster(meta, cacheMasterRows);
+                masterCache.Add(meta, master);
             }
-            if (meta == null) {
-                return null;
-            }
-            var master = new CalibrationMaster(meta);
-            masterCache.Add(meta, master);
             return master;
         }
 
@@ -184,53 +167,17 @@ namespace NINA.Plugin.Livestack.Image {
             int offset,
             string inFilter,
             bool isBayered) {
-            CalibrationMaster bias = null;
-            if (LivestackMediator.Plugin.UseBiasForLights) {
-                bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
-            }
+            float[] output = GC.AllocateUninitializedArray<float>(AffineResampler.GetLength(width, height));
+            ApplyLightFrameCalibrationInto(image, output, width, height, exposureTime, gain, offset, inFilter, isBayered);
+            return output;
+        }
 
-            var dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
-            var flat = GetFlatMaster(width, height, inFilter, isBayered);
-
-            var sb = new StringBuilder();
-            sb.Append($"Calibrating \"{image.FilePath}\";");
-            if (bias != null) sb.Append($" using bias \"{bias.Meta.Path}\";");
-            if (dark != null) sb.Append($" using dark \"{dark.Meta.Path}\";");
-            if (flat != null) sb.Append($" using flat \"{flat.Meta.Path}\";");
-            Logger.Info(sb.ToString());
-
-            float[] imageArray = new float[width * height];
-
-            // Hoist invariants
-            bool hasBias = bias != null;
-            bool hasDark = dark != null;
-            bool hasFlat = flat != null;
-            float flatMean = hasFlat ? (float)flat.Meta.Mean : 1f;
-
-            float[] lightRowBuffer = ArrayPool<float>.Shared.Rent(width);
-            try {
-                for (int row = 0; row < height; row++) {
-                    Span<float> lightRow = lightRowBuffer.AsSpan(0, width);
-                    image.ReadPixelRowAsFloat(row, lightRow);
-
-                    int rowStart = row * width;
-
-                    CalibrateRow(
-                        dst: imageArray.AsSpan(rowStart, width),
-                        light: lightRow,
-                        bias: hasBias ? bias.ReadPixelRow(row) : default,
-                        dark: hasDark ? dark.ReadPixelRow(row) : default,
-                        flat: hasFlat ? flat.ReadPixelRow(row) : default,
-                        hasBias: hasBias,
-                        hasDark: hasDark,
-                        hasFlat: hasFlat,
-                        flatMean: flatMean);
-                }
-            } finally {
-                ArrayPool<float>.Shared.Return(lightRowBuffer);
-            }
-
-            return imageArray;
+        public void ApplyLightFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token = default) {
+            ValidateDestination(image, imageArray, width, height, token);
+            CalibrationMaster bias = LivestackMediator.Plugin.UseBiasForLights ? GetBiasMaster(width, height, gain, offset) : null;
+            CalibrationMaster dark = GetDarkMaster(width, height, exposureTime, gain, offset);
+            CalibrationMaster flat = GetFlatMaster(width, height, inFilter);
+            CalibrateFrame(image, imageArray, width, height, bias, dark, flat, token);
         }
 
         public float[] ApplyFlatFrameCalibrationInPlace(
@@ -242,92 +189,68 @@ namespace NINA.Plugin.Livestack.Image {
             int offset,
             string inFilter,
             bool isBayered) {
-            var bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
-            CalibrationMaster dark = null;
-            if (bias == null) {
-                dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
-            }
+            float[] output = GC.AllocateUninitializedArray<float>(AffineResampler.GetLength(width, height));
+            ApplyFlatFrameCalibrationInto(image, output, width, height, exposureTime, gain, offset, inFilter, isBayered);
+            return output;
+        }
 
-            var sb = new StringBuilder();
+        public void ApplyFlatFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token = default) {
+            ValidateDestination(image, imageArray, width, height, token);
+            CalibrationMaster bias = GetBiasMaster(width, height, gain, offset);
+            CalibrationMaster dark = bias == null ? GetDarkMaster(width, height, exposureTime, gain, offset) : null;
+            CalibrateFrame(image, imageArray, width, height, bias, dark, null, token);
+        }
+
+        private static void ValidateDestination(CFitsioFITSReader image, float[] imageArray, int width, int height, CancellationToken token) {
+            token.ThrowIfCancellationRequested();
+            ArgumentNullException.ThrowIfNull(imageArray);
+            if (imageArray.Length != AffineResampler.GetLength(width, height) || image.Width != width || image.Height != height) {
+                throw new ArgumentException("Calibration buffers and FITS dimensions must agree.");
+            }
+        }
+
+        private static void CalibrateFrame(CFitsioFITSReader image, float[] imageArray, int width, int height, CalibrationMaster bias, CalibrationMaster dark, CalibrationMaster flat, CancellationToken token) {
+            StringBuilder sb = new StringBuilder();
             sb.Append($"Calibrating \"{image.FilePath}\";");
             if (bias != null) sb.Append($" using bias \"{bias.Meta.Path}\";");
             if (dark != null) sb.Append($" using dark \"{dark.Meta.Path}\";");
+            if (flat != null) sb.Append($" using flat \"{flat.Meta.Path}\";");
             Logger.Info(sb.ToString());
 
-            float[] imageArray = new float[width * height];
-
-            // Hoist invariants
-            bool hasBias = bias != null;
-            bool hasDark = dark != null;
-            float[] lightRowBuffer = ArrayPool<float>.Shared.Rent(width);
-            try {
-                for (int row = 0; row < height; row++) {
-                    Span<float> lightRow = lightRowBuffer.AsSpan(0, width);
-                    image.ReadPixelRowAsFloat(row, lightRow);
-
-                    int rowStart = row * width;
-
-                    CalibrateRow(
-                        dst: imageArray.AsSpan(rowStart, width),
-                        light: lightRow,
-                        bias: hasBias ? bias.ReadPixelRow(row) : default,
-                        dark: hasDark ? dark.ReadPixelRow(row) : default,
-                        flat: default,
-                        hasBias: hasBias,
-                        hasDark: hasDark,
-                        hasFlat: false,
-                        flatMean: 0);
-                }
-            } finally {
-                ArrayPool<float>.Shared.Return(lightRowBuffer);
+            float flatMean = flat != null ? (float)flat.Meta.Mean : 1f;
+            for (int row = 0; row < height; row++) {
+                token.ThrowIfCancellationRequested();
+                Span<float> pixels = imageArray.AsSpan(row * width, width);
+                image.ReadPixelRowAsFloat(row, pixels);
+                CalibrateRow(pixels,
+                    bias != null ? bias.ReadPixelRow(row) : default,
+                    dark != null ? dark.ReadPixelRow(row) : default,
+                    flat != null ? flat.ReadPixelRow(row) : default,
+                    flatMean);
             }
-
-            return imageArray;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static void CalibrateRow(
-            Span<float> dst,
-            ReadOnlySpan<float> light,
+            Span<float> pixels,
             ReadOnlySpan<float> bias,
             ReadOnlySpan<float> dark,
             ReadOnlySpan<float> flat,
-            bool hasBias,
-            bool hasDark,
-            bool hasFlat,
             float flatMean) {
-            int n = dst.Length;
-
-            // Fast scalar fallback if SIMD is unavailable or too short to matter
-            if (!Vector.IsHardwareAccelerated || n < Vector<float>.Count) {
-                for (int i = 0; i < n; i++) {
-                    float v = light[i];
-                    if (hasBias) v -= bias[i];
-                    if (hasDark) v -= dark[i];
-
-                    if (v < 0f) v = 0f;
-                    else if (v > 1f) v = 1f;
-
-                    if (hasFlat) {
-                        // v / (flat/mean)  == v * (mean/flat)
-                        v *= flatMean / flat[i];
-                    }
-
-                    dst[i] = v;
-                }
-                return;
-            }
-
+            int n = pixels.Length;
+            bool hasBias = !bias.IsEmpty;
+            bool hasDark = !dark.IsEmpty;
+            bool hasFlat = !flat.IsEmpty;
             int simd = Vector<float>.Count;
             int iVec = 0;
-            int last = n - (n % simd);
+            int last = Vector.IsHardwareAccelerated ? n - (n % simd) : 0;
 
             var vZero = Vector<float>.Zero;
             var vOne = new Vector<float>(1f);
             var vMean = hasFlat ? new Vector<float>(flatMean) : default;
 
             for (; iVec < last; iVec += simd) {
-                var v = new Vector<float>(light.Slice(iVec, simd));
+                var v = new Vector<float>(pixels.Slice(iVec, simd));
 
                 if (hasBias) v -= new Vector<float>(bias.Slice(iVec, simd));
                 if (hasDark) v -= new Vector<float>(dark.Slice(iVec, simd));
@@ -340,12 +263,12 @@ namespace NINA.Plugin.Livestack.Image {
                     v *= (vMean / f);
                 }
 
-                v.CopyTo(dst.Slice(iVec, simd));
+                v.CopyTo(pixels.Slice(iVec, simd));
             }
 
-            // Scalar tail
+            // Also handles the whole row when SIMD is unavailable or the row is too short.
             for (int i = iVec; i < n; i++) {
-                float v = light[i];
+                float v = pixels[i];
                 if (hasBias) v -= bias[i];
                 if (hasDark) v -= dark[i];
 
@@ -354,7 +277,7 @@ namespace NINA.Plugin.Livestack.Image {
 
                 if (hasFlat) v *= flatMean / flat[i];
 
-                dst[i] = v;
+                pixels[i] = v;
             }
         }
 

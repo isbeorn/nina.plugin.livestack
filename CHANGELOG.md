@@ -1,5 +1,14 @@
 # Livestack
 
+## Unreleased
+
+- Better protection against poor alignment matches that could stretch or skew an image and spoil the stack.
+- Stacking now requires at least eight usable stars and skips frames with incompatible camera settings to protect the current stack.
+- Improved image detail when aligning small shifts and corrected darkening along edges where frames do not fully overlap.
+- Reduced memory usage during calibration, stacking and preview updates, especially with large images.
+- Preview updates recover more reliably after cancellation or failure while keeping the last successful preview visible.
+- Closing a stack also removes color combinations that depend on it.
+
 ## 1.1.3.0
 - Fixed live-stack alignment star selection when detector brightness metadata is unusable.
     - Alignment now falls back to valid detected star centroids when MaxBrightness is saturated, invalid, or NaN, instead of producing zero filtered stars.

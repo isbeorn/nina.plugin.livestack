@@ -1,20 +1,16 @@
-﻿using NINA.Core.Enum;
-using NINA.Equipment.Interfaces.Mediator;
-using NINA.Image.Interfaces;
-using NINA.Profile.Interfaces;
-using System.Threading.Tasks;
-using System.Threading;
+#nullable disable
 using NINA.Core.Utility;
-using System.Collections.Generic;
-using NINA.Image.ImageData;
-using System.Linq;
-using NINA.Profile;
+using NINA.Plugin.Livestack.Image;
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 
-namespace NINA.Plugin.Livestack.Image {
+// Historical scalar implementation, retained only as an independent calibration oracle.
+// This file is also linked into the benchmark project; it is not part of the plugin.
+namespace NINA.Plugin.Livestack.TestSupport {
 
-    public class CalibrationManager : ICalibrationManager {
+    internal sealed class CalibrationReference : ICalibrationManager {
 
         internal class CalibrationMaster : IDisposable {
 
@@ -48,7 +44,7 @@ namespace NINA.Plugin.Livestack.Image {
         public IList<CalibrationFrameMeta> BiasLibrary { get; } = new List<CalibrationFrameMeta>();
         private Dictionary<CalibrationFrameMeta, CalibrationMaster> masterCache = new Dictionary<CalibrationFrameMeta, CalibrationMaster>();
 
-        public CalibrationManager() {
+        public CalibrationReference() {
         }
 
         public void RegisterBiasMaster(CalibrationFrameMeta calibrationFrameMeta) {
