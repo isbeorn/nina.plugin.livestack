@@ -20,6 +20,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\nina.plugin.livestack.csproj" />
+    <ProjectReference Include="..\nina.plugin.livestack.replay\nina.plugin.livestack.replay.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows7.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <PlatformTarget>x64</PlatformTarget>
+    <Platforms>AnyCPU;x64</Platforms>
+    <AssemblyName>Livestack.Replay</AssemblyName>
+    <RootNamespace>NINA.Plugin.Livestack.Replay</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\nina.plugin.livestack.csproj" AdditionalProperties="SkipPluginDeploy=true" />
+    <PackageReference Include="Moq" Version="4.20.72" />
+    <None Include="..\nina.plugin.livestack.test\External\x64\Cfitsio\*.dll" Link="External\x64\Cfitsio\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\nina.plugin.livestack.test\External\x64\FreeImage\*.dll" Link="External\x64\FreeImage\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\nina.plugin.livestack.test\External\x64\SOFA\*.dll" Link="External\x64\SOFA\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\nina.plugin.livestack.test\External\x64\NOVAS\*.dll" Link="External\x64\NOVAS\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\nina.plugin.livestack.test\External\x64\VCRedis\*.dll" Link="External\x64\VCRedis\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\nina.plugin.livestack.test\External\x64\Cfitsio\*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

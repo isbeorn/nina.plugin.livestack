@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed growing memory use in the replay viewer when processing many frames or resetting stacks.
+- Added a standalone replay viewer to test saved captures without opening N.I.N.A., with step-by-step stacking and alignment feedback.
 - Better protection against poor alignment matches that could stretch or skew an image and spoil the stack.
 - Stacking now requires at least eight usable stars and skips frames with incompatible camera settings to protect the current stack.
 - Improved image detail when aligning small shifts and corrected darkening along edges where frames do not fully overlap.

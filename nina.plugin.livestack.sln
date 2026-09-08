@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nina.plugin.livestack.bench
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nina.plugin.livestack.test", "nina.plugin.livestack.test\nina.plugin.livestack.test.csproj", "{8032F989-38C5-4EEC-B919-08F4D351D813}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "nina.plugin.livestack.replay", "nina.plugin.livestack.replay\nina.plugin.livestack.replay.csproj", "{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -41,6 +43,14 @@ Global
 		{8032F989-38C5-4EEC-B919-08F4D351D813}.Release|Any CPU.Build.0 = Release|Any CPU
 		{8032F989-38C5-4EEC-B919-08F4D351D813}.Release|x64.ActiveCfg = Release|Any CPU
 		{8032F989-38C5-4EEC-B919-08F4D351D813}.Release|x64.Build.0 = Release|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Debug|x64.Build.0 = Debug|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Release|x64.ActiveCfg = Release|Any CPU
+		{772BFA05-9C19-4DF3-9F29-ED77D8B5B65C}.Release|x64.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

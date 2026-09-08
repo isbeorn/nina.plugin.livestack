@@ -128,16 +128,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                                 DecrementQueueEntries();
 
                                 try {
-                                    if (item.StarList.Count < 8) {
-                                        Logger.Info($"Skipping frame as not enough stars have been detected ({item.StarList.Count})");
-                                        continue;
-                                    }
-
-                                    if (!ItemPassesQuality(item)) {
-                                        continue;
-                                    }
-
-                                    await StackItem(item, token);
+                                    await ProcessFrameAsync(item, stackSessionId.Value, token);
                                 } finally {
                                     try {
                                         File.Delete(item.Path);
@@ -255,38 +246,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             if (e.Image.RawImageData.MetaData.Image.ImageType == NINA.Equipment.Model.CaptureSequence.ImageTypes.LIGHT || e.Image.RawImageData.MetaData.Image.ImageType == NINA.Equipment.Model.CaptureSequence.ImageTypes.SNAPSHOT) {
                 _ = Task.Run(async () => {
                     try {
-                        var statistics = await e.Image.RawImageData.Statistics;
-                        var starDetectionAnalysis = e.Image.RawImageData.StarDetectionAnalysis;
-                        if (NeedsStarDetection(starDetectionAnalysis)) {
-                            var render = e.Image.RawImageData.RenderImage();
-                            render = await render.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
-                            render = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, default, default);
-                            starDetectionAnalysis = render.RawImageData.StarDetectionAnalysis;
-                        }
-
-                        // Only retrieve the filename part of the pattern
-                        var pattern = Path.GetFileName(profileService.ActiveProfile.ImageFileSettings.GetFilePattern(e.Image.RawImageData.MetaData.Image.ImageType));
-
-                        var path = await e.Image.RawImageData.SaveToDisk(
-                            new NINA.Image.FileFormat.FileSaveInfo() {
-                                FilePath = Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "temp"),
-                                FilePattern = pattern,
-                                FileType = Core.Enum.FileTypeEnum.FITS
-                            },
-                            default, true, e.Patterns
-                        );
-                        await channel.Writer.WriteAsync(new LiveStackItem(path: path,
-                                                                   target: e.Image.RawImageData.MetaData.Target.Name,
-                                                                   filter: e.Image.RawImageData.MetaData.FilterWheel.Filter,
-                                                                   exposureTime: e.Image.RawImageData.MetaData.Image.ExposureTime,
-                                                                   gain: e.Image.RawImageData.MetaData.Camera.Gain,
-                                                                   offset: e.Image.RawImageData.MetaData.Camera.Offset,
-                                                                   width: e.Image.RawImageData.Properties.Width,
-                                                                   height: e.Image.RawImageData.Properties.Height,
-                                                                   bitDepth: e.Image.RawImageData.Properties.BitDepth,
-                                                                   isBayered: e.Image.RawImageData.Properties.IsBayered,
-                                                                   analysis: starDetectionAnalysis,
-                                                                   metaData: e.Image.RawImageData.MetaData));
+                        LiveStackItem item = await PrepareFrameAsync(e.Image.RawImageData, e.Patterns, default);
+                        await channel.Writer.WriteAsync(item);
 
                         IncrementQueueEntries();
                     } catch (Exception ex) {
@@ -476,11 +437,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
         }
 
-        private async Task StackItem(LiveStackItem item, CancellationToken token) {
+        private async Task<bool> StackItem(LiveStackItem item, Guid correlation, CancellationToken token) {
             var tab = GetOrCreateStackBag(item);
             if (!tab.IsCompatible(GetFrameProperties(item))) {
                 LogAlignment(AlignmentResult.Rejected("Frame dimensions or capture settings differ from the reference. Start a new stack for this capture setup."), item);
-                return;
+                return false;
             }
             tab.Locked = true;
             try {
@@ -494,12 +455,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
                 RemoveHotpixelsIfNeeded(calibratedFrame.Buffer, item);
 
-                Guid correlation = this.stackSessionId.Value;
                 bool added = item.IsBayered
                     ? await StackOSC(calibratedFrame, item, tab, correlation, token)
                     : await StackMono(calibratedFrame, item, tab, correlation, token);
                 if (!added) {
-                    return;
+                    return false;
                 }
 
                 var colorTab = Tabs.Where(x => x is ColorCombinationTab && x.Target == tab.Target).FirstOrDefault() as ColorCombinationTab;
@@ -517,6 +477,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                         _ = messageBroker.Publish(new LivestackBroadcast(LiveStackBroadcastContent.Color(colorTab.StackCountRed, colorTab.StackCountGreen, colorTab.StackCountBlue, colorTab.Filter, colorTab.Target, colorTab.StackImage), correlation));
                     }
                 }
+                return true;
             } finally {
                 tab.Locked = false;
             }

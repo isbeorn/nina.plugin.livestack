@@ -1,0 +1,79 @@
+<Window x:Class="NINA.Plugin.Livestack.Replay.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Live Stack Replay" Width="1240" Height="860" MinWidth="960" MinHeight="680"
+        Background="#F2F4F7" AllowDrop="True" Drop="OnDrop">
+    <Window.Resources>
+        <Style TargetType="Button"><Setter Property="Padding" Value="12,6"/><Setter Property="Margin" Value="0,0,6,0"/></Style>
+        <Style TargetType="TextBlock"><Setter Property="VerticalAlignment" Value="Center"/></Style>
+    </Window.Resources>
+    <Grid Margin="16">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <StackPanel>
+            <TextBlock Text="LIVE STACK REPLAY" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Text="Replay capture files through the plugin. Drop files or LIGHT folders here; originals stay unchanged." Margin="0,5,0,12" Foreground="#505B6C"/>
+            <DockPanel IsEnabled="{Binding IsIdle}" Margin="0,0,0,10">
+                <Button DockPanel.Dock="Right" Content="Add folder..." Click="AddFolder"/>
+                <Button DockPanel.Dock="Right" Content="Add files..." Click="AddFiles"/>
+                <Button DockPanel.Dock="Right" Content="Add paths" Click="AddPaths"/>
+                <TextBox Text="{Binding PathText, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" Height="44" VerticalScrollBarVisibility="Auto" ToolTip="One file or folder path per line, including network paths." Margin="0,0,8,0"/>
+            </DockPanel>
+        </StackPanel>
+        <DockPanel Grid.Row="1" Margin="0,0,0,12">
+            <TextBlock DockPanel.Dock="Right" Text="{Binding Progress}" FontWeight="SemiBold"/>
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="PlayButton" Content="Play" Command="{Binding PlayCommand}"/>
+                <Button x:Name="StepButton" Content="Step" Command="{Binding StepCommand}"/>
+                <Button Content="Stop after frame" Command="{Binding StopCommand}" IsEnabled="{Binding IsBusy}"/>
+                <Button x:Name="ResetButton" Content="Reset stacks" Command="{Binding ResetCommand}"/>
+                <Button Content="Clear files" Command="{Binding ClearCommand}"/>
+                <ComboBox ItemsSource="{Binding SensorModes}" SelectedItem="{Binding SensorMode}" Width="90" IsEnabled="{Binding IsIdle}" Margin="8,0" VerticalContentAlignment="Center"/>
+                <CheckBox Content="Hot-pixel cleanup" IsChecked="{Binding Host.Plugin.HotpixelRemoval}" IsEnabled="{Binding IsIdle}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </DockPanel>
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="310"/><ColumnDefinition Width="8"/><ColumnDefinition/></Grid.ColumnDefinitions>
+            <DataGrid x:Name="FramesGrid" ItemsSource="{Binding Files}" SelectedItem="{Binding CurrentFile}" IsReadOnly="True" AutoGenerateColumns="False" CanUserAddRows="False" EnableRowVirtualization="True">
+                <DataGrid.Columns><DataGridTextColumn Header="Frame" Binding="{Binding Name}" Width="*"/><DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="82"/></DataGrid.Columns>
+            </DataGrid>
+            <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"/>
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions><RowDefinition/><RowDefinition Height="8"/><RowDefinition Height="190"/></Grid.RowDefinitions>
+                <TabControl x:Name="StacksView" ItemsSource="{Binding Host.Dockable.Tabs}" SelectedItem="{Binding Host.Dockable.SelectedTab}">
+                    <TabControl.ItemTemplate><DataTemplate><StackPanel Orientation="Horizontal"><TextBlock Text="{Binding Target}"/><TextBlock Text=" / "/><TextBlock Text="{Binding Filter}"/></StackPanel></DataTemplate></TabControl.ItemTemplate>
+                    <TabControl.ContentTemplate><DataTemplate>
+                        <Grid Background="#10141D">
+                            <Image Source="{Binding StackImage}" Stretch="Uniform" Margin="8"/>
+                            <TextBlock Text="Waiting for an accepted frame" Foreground="#A8B0BD" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <TextBlock.Style><Style TargetType="TextBlock"><Setter Property="Visibility" Value="Collapsed"/><Style.Triggers><DataTrigger Binding="{Binding StackImage}" Value="{x:Null}"><Setter Property="Visibility" Value="Visible"/></DataTrigger></Style.Triggers></Style></TextBlock.Style>
+                            </TextBlock>
+                        </Grid>
+                    </DataTemplate></TabControl.ContentTemplate>
+                </TabControl>
+                <GridSplitter Grid.Row="1" Height="6" HorizontalAlignment="Stretch"/>
+                <TabControl Grid.Row="2">
+                    <TabItem Header="Processing log"><ListBox ItemsSource="{Binding Log}" FontFamily="Consolas" FontSize="11" ScrollViewer.HorizontalScrollBarVisibility="Auto"/></TabItem>
+                    <TabItem Header="Calibration masters">
+                        <DockPanel IsEnabled="{Binding IsIdle}">
+                            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="4">
+                                <ComboBox ItemsSource="{Binding MasterTypes}" SelectedItem="{Binding MasterType}" Width="85" VerticalContentAlignment="Center" Margin="0,0,8,0"/>
+                                <Button Content="Add FITS masters..." Click="AddMasters"/><Button Content="Remove selected" Command="{Binding RemoveMasterCommand}"/>
+                            </StackPanel>
+                            <DataGrid ItemsSource="{Binding Masters}" SelectedItem="{Binding SelectedMaster}" AutoGenerateColumns="False" CanUserAddRows="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding Type}" IsReadOnly="True"/>
+                                    <DataGridTextColumn Header="Filter" Binding="{Binding Filter}"/>
+                                    <DataGridTextColumn Header="Gain" Binding="{Binding Gain}"/>
+                                    <DataGridTextColumn Header="Offset" Binding="{Binding Offset}"/>
+                                    <DataGridTextColumn Header="Seconds" Binding="{Binding ExposureTime}"/>
+                                    <DataGridTextColumn Header="Path" Binding="{Binding Path}" IsReadOnly="True" Width="*"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
+            </Grid>
+        </Grid>
+        <TextBlock Grid.Row="3" Text="{Binding Status}" Margin="0,12,0,0" TextTrimming="CharacterEllipsis"/>
+    </Grid>
+</Window>
