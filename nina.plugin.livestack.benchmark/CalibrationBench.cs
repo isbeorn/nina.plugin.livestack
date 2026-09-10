@@ -134,6 +134,12 @@ public class CalibrationBench {
         return reusableOutput[0];
     }
 
+    [Benchmark]
+    public float PersistentStreamedMastersAndReusedFrame() {
+        manager2.ApplyLightFrameCalibrationInto(reader, reusableOutput, frameWidth, frameHeight, frameExposureTime, frameGain, frameOffset, frameFilter, frameIsBayered);
+        return reusableOutput[0];
+    }
+
     private CalibrationManagerSimd CreateFrameManager(bool cached) {
         CalibrationManagerSimd calibration = new(cached);
         foreach (CalibrationFrameMeta master in manager2.BiasLibrary) calibration.RegisterBiasMaster(master);

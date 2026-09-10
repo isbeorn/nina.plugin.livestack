@@ -23,6 +23,7 @@ namespace NINA.Plugin.Livestack.Image {
         void Dispose();
 
         void RegisterBiasMaster(CalibrationFrameMeta calibrationFrameMeta);
+        void ClearRegisteredMasters();
 
         void RegisterDarkMaster(CalibrationFrameMeta calibrationFrameMeta);
 

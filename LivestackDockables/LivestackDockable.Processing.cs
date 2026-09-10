@@ -12,6 +12,17 @@ using System.Threading.Tasks;
 namespace NINA.Plugin.Livestack.LivestackDockables {
     public partial class LivestackDockable {
         private readonly SemaphoreSlim frameProcessing = new(1, 1);
+        private ICalibrationManager calibrationManager;
+
+        private void ResetCalibration() {
+            calibrationManager?.Dispose();
+            calibrationManager = null;
+        }
+
+        private async Task ReleaseCalibrationAsync() {
+            await frameProcessing.WaitAsync();
+            try { ResetCalibration(); } finally { frameProcessing.Release(); }
+        }
 
         /// <summary>
         /// Processes a decoded capture through the same preparation, quality gates, calibration,
@@ -40,12 +51,14 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private async Task<bool> ProcessFrameAsync(LiveStackItem item, Guid correlation, CancellationToken token) {
             await frameProcessing.WaitAsync(token);
             try {
+                ObjectDisposedException.ThrowIf(disposed, this);
                 if (item.StarList.Count < 8) {
                     Logger.Info($"Skipping frame as not enough stars have been detected ({item.StarList.Count})");
                     return false;
                 }
                 return ItemPassesQuality(item) && await StackItem(item, correlation, token);
             } finally {
+                if (disposed) ResetCalibration();
                 frameProcessing.Release();
             }
         }

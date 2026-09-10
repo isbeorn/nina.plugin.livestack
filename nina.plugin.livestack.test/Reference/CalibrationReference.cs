@@ -53,6 +53,12 @@ namespace NINA.Plugin.Livestack.TestSupport {
             }
         }
 
+        public void ClearRegisteredMasters() {
+            BiasLibrary.Clear();
+            DarkLibrary.Clear();
+            FlatLibrary.Clear();
+        }
+
         public void RegisterDarkMaster(CalibrationFrameMeta calibrationFrameMeta) {
             if (!DarkLibrary.Any(x => x.Equals(calibrationFrameMeta))) {
                 DarkLibrary.Add(calibrationFrameMeta);

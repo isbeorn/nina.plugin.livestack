@@ -2,6 +2,7 @@
 using System;
 using System.Buffers;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -15,7 +16,12 @@ namespace NINA.Plugin.Livestack.Image {
         internal sealed class CalibrationMaster : IDisposable {
 
             public CalibrationMaster(CalibrationFrameMeta meta, bool cacheRows) {
-                Meta = meta ?? throw new ArgumentNullException(nameof(meta));
+                ArgumentNullException.ThrowIfNull(meta);
+                Meta = new CalibrationFrameMeta(meta.Type, meta.Path, meta.Gain, meta.Offset, meta.ExposureTime,
+                    meta.Filter, meta.Width, meta.Height, meta.Mean);
+                FileInfo file = new(meta.Path);
+                fileLength = file.Length;
+                lastWriteTime = file.LastWriteTimeUtc;
 
                 _width = meta.Width;
                 _height = meta.Height;
@@ -38,6 +44,14 @@ namespace NINA.Plugin.Livestack.Image {
             private readonly CFitsioFITSReader _imageReader;
             private readonly int _width;
             private readonly int _height;
+            private readonly long fileLength;
+            private readonly DateTime lastWriteTime;
+
+            internal bool Matches(CalibrationFrameMeta meta) {
+                if (!Meta.Equals(meta) || !Meta.Mean.Equals(meta.Mean)) return false;
+                FileInfo file = new(meta.Path);
+                return file.Exists && file.Length == fileLength && file.LastWriteTimeUtc == lastWriteTime;
+            }
 
             // A reusable row by default, or a contiguous image when caching is explicitly requested.
             private float[] _data;
@@ -94,7 +108,8 @@ namespace NINA.Plugin.Livestack.Image {
         public IList<CalibrationFrameMeta> FlatLibrary { get; } = new List<CalibrationFrameMeta>();
         public IList<CalibrationFrameMeta> DarkLibrary { get; } = new List<CalibrationFrameMeta>();
         public IList<CalibrationFrameMeta> BiasLibrary { get; } = new List<CalibrationFrameMeta>();
-        private readonly Dictionary<CalibrationFrameMeta, CalibrationMaster> masterCache = new Dictionary<CalibrationFrameMeta, CalibrationMaster>();
+        // Only the currently selected bias, dark and flat reader can be retained.
+        private readonly Dictionary<CalibrationFrameType, CalibrationMaster> masterCache = new();
 
         private readonly bool cacheMasterRows;
 
@@ -109,6 +124,12 @@ namespace NINA.Plugin.Livestack.Image {
             if (!BiasLibrary.Any(x => x.Equals(calibrationFrameMeta))) {
                 BiasLibrary.Add(calibrationFrameMeta);
             }
+        }
+
+        public void ClearRegisteredMasters() {
+            BiasLibrary.Clear();
+            DarkLibrary.Clear();
+            FlatLibrary.Clear();
         }
 
         public void RegisterDarkMaster(CalibrationFrameMeta calibrationFrameMeta) {
@@ -129,7 +150,7 @@ namespace NINA.Plugin.Livestack.Image {
                 ?? BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height)
                 ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height)
                 ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
-            return GetOrCreateMaster(meta);
+            return GetOrCreateMaster(meta, CalibrationFrameType.BIAS);
         }
 
         private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset) {
@@ -138,23 +159,24 @@ namespace NINA.Plugin.Livestack.Image {
                 ?? DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
                 ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
                 ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
-            return GetOrCreateMaster(meta);
+            return GetOrCreateMaster(meta, CalibrationFrameType.DARK);
         }
 
         private CalibrationMaster GetFlatMaster(int width, int height, string inFilter) {
             string filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
             CalibrationFrameMeta meta = FlatLibrary.FirstOrDefault(x => x.Filter == filter && x.Width == width && x.Height == height);
-            return GetOrCreateMaster(meta);
+            return GetOrCreateMaster(meta, CalibrationFrameType.FLAT);
         }
 
-        private CalibrationMaster GetOrCreateMaster(CalibrationFrameMeta meta) {
-            if (meta == null) {
-                return null;
+        private CalibrationMaster GetOrCreateMaster(CalibrationFrameMeta meta, CalibrationFrameType type) {
+            if (masterCache.TryGetValue(type, out CalibrationMaster master)) {
+                if (meta != null && master.Matches(meta)) return master;
+                masterCache.Remove(type);
+                master.Dispose();
             }
-            if (!masterCache.TryGetValue(meta, out CalibrationMaster master)) {
-                master = new CalibrationMaster(meta, cacheMasterRows);
-                masterCache.Add(meta, master);
-            }
+            if (meta == null) return null;
+            master = new CalibrationMaster(meta, cacheMasterRows);
+            masterCache.Add(type, master);
             return master;
         }
 
@@ -174,7 +196,7 @@ namespace NINA.Plugin.Livestack.Image {
 
         public void ApplyLightFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token = default) {
             ValidateDestination(image, imageArray, width, height, token);
-            CalibrationMaster bias = LivestackMediator.Plugin.UseBiasForLights ? GetBiasMaster(width, height, gain, offset) : null;
+            CalibrationMaster bias = LivestackMediator.Plugin.UseBiasForLights ? GetBiasMaster(width, height, gain, offset) : GetOrCreateMaster(null, CalibrationFrameType.BIAS);
             CalibrationMaster dark = GetDarkMaster(width, height, exposureTime, gain, offset);
             CalibrationMaster flat = GetFlatMaster(width, height, inFilter);
             CalibrateFrame(image, imageArray, width, height, bias, dark, flat, token);
@@ -197,7 +219,8 @@ namespace NINA.Plugin.Livestack.Image {
         public void ApplyFlatFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token = default) {
             ValidateDestination(image, imageArray, width, height, token);
             CalibrationMaster bias = GetBiasMaster(width, height, gain, offset);
-            CalibrationMaster dark = bias == null ? GetDarkMaster(width, height, exposureTime, gain, offset) : null;
+            CalibrationMaster dark = bias == null ? GetDarkMaster(width, height, exposureTime, gain, offset) : GetOrCreateMaster(null, CalibrationFrameType.DARK);
+            GetOrCreateMaster(null, CalibrationFrameType.FLAT);
             CalibrateFrame(image, imageArray, width, height, bias, dark, null, token);
         }
 

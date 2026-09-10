@@ -135,6 +135,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             } finally {
                 imageSaveMediator.BeforeFinalizeImageSaved -= receive;
                 await session.DisposeAsync();
+                await ReleaseCalibrationAsync();
                 activeSession = null;
                 NotifyQueueEntriesChanged();
                 applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "" });
@@ -148,6 +149,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             Task running = StartLiveStackCommand.ExecutionTask;
             StartLiveStackCommand.Cancel();
             if (running != null) await running;
+            await ReleaseCalibrationAsync();
         }
 
         [RelayCommand]
@@ -441,7 +443,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         private ImageBufferLease CalibrateFrame(LiveStackItem item, CancellationToken token) {
             StatusUpdate("Calibrating frame", item);
-            using var calibrationManager = LivestackMediator.CreateCalibrationManager();
+            calibrationManager ??= LivestackMediator.CreateCalibrationManager();
             RegisterCalibrationMasters(calibrationManager);
             ImageBufferLease frame = ImageBufferPool.Shared.Rent(AffineResampler.GetLength(item.Width, item.Height));
             try {
@@ -499,6 +501,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private void RegisterCalibrationMasters(ICalibrationManager calibrationManager) {
+            calibrationManager.ClearRegisteredMasters();
             foreach (var meta in LivestackMediator.CalibrationVM.BiasLibrary) {
                 calibrationManager.RegisterBiasMaster(meta);
             }
@@ -517,6 +520,9 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             if (disposed) return;
             disposed = true;
             activeSession?.Cancel();
+            if (frameProcessing.Wait(0)) {
+                try { ResetCalibration(); } finally { frameProcessing.Release(); }
+            }
             profileService.ProfileChanged -= ProfileService_ProfileChanged;
             foreach (IQualityGate gate in QualityGates) gate.PropertyChanged -= QualityGate_PropertyChanged;
             messageBroker.Unsubscribe("Livestack_LivestackDockable_StartLiveStack", this);
