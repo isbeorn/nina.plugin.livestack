@@ -131,6 +131,16 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private readonly LiveStackTab green;
         private readonly LiveStackTab blue;
         private readonly bool channelsAlreadyAligned;
+        private readonly Dictionary<LiveStackTab, ChannelAlignment> channelAlignments = new();
+
+        // At most two small star catalogs and matrices. Resampled image buffers are never cached.
+        private sealed record ChannelAlignment(int Width, int Height, Accord.Point[] Reference, Accord.Point[] Stars, double[,] Matrix) {
+            internal bool Matches(LiveStackTab reference, LiveStackTab target) {
+                return Width == reference.Properties.Width && Height == reference.Properties.Height
+                    && reference.ReferenceStars != null && target.ReferenceStars != null
+                    && Reference.SequenceEqual(reference.ReferenceStars) && Stars.SequenceEqual(target.ReferenceStars);
+            }
+        }
 
         public bool NeedsRefresh { get; private set; } = true;
 
@@ -198,20 +208,29 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private ImageBufferLease AlignTab(LiveStackTab reference, LiveStackTab target, CancellationToken token) {
+            token.ThrowIfCancellationRequested();
             if (reference.Properties.Width != target.Properties.Width || reference.Properties.Height != target.Properties.Height) {
+                channelAlignments.Remove(target);
                 Logger.Warning("Live Stack color combination skipped: channel dimensions differ.");
                 return null;
             }
-            AlignmentResult alignment = LivestackMediator.GetImageTransformer().ComputeAlignment(target.ReferenceStars, reference.ReferenceStars, reference.Properties.Width, reference.Properties.Height, token);
-            if (!alignment.Success) {
-                Logger.Warning($"Live Stack color combination skipped: {alignment}");
-                return null;
+            if (!channelAlignments.TryGetValue(target, out ChannelAlignment plan) || !plan.Matches(reference, target)) {
+                channelAlignments.Remove(target);
+                AlignmentResult alignment = LivestackMediator.GetImageTransformer().ComputeAlignment(target.ReferenceStars, reference.ReferenceStars, reference.Properties.Width, reference.Properties.Height, token);
+                if (!alignment.Success) {
+                    Logger.Warning($"Live Stack color combination skipped: {alignment}");
+                    return null;
+                }
+                token.ThrowIfCancellationRequested();
+                plan = new ChannelAlignment(reference.Properties.Width, reference.Properties.Height,
+                    reference.ReferenceStars.ToArray(), target.ReferenceStars.ToArray(), alignment.Matrix);
+                channelAlignments.Add(target, plan);
+                Logger.Info($"Live Stack color combination alignment: {alignment}");
             }
-            Logger.Info($"Live Stack color combination alignment: {alignment}");
             token.ThrowIfCancellationRequested();
             ImageBufferLease pixels = ImageBufferPool.Shared.Rent(target.Stack.Length);
             try {
-                LivestackMediator.GetImageTransformer().ApplyAffineTransformationInto(target.Stack, pixels.Buffer, target.Properties.Width, target.Properties.Height, alignment.Matrix);
+                LivestackMediator.GetImageTransformer().ApplyAffineTransformationInto(target.Stack, pixels.Buffer, target.Properties.Width, target.Properties.Height, plan.Matrix);
                 return pixels;
             } catch {
                 pixels.Dispose();
