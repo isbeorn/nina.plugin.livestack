@@ -63,6 +63,7 @@ namespace NINA.Plugin.Livestack {
         public override async Task Teardown() {
             if (LivestackMediator.LiveStackDockable != null) {
                 await LivestackMediator.LiveStackDockable.StopAsync();
+                LivestackMediator.LiveStackDockable.Dispose();
             }
             ImageBufferPool.Shared.Trim();
             // Make sure to unregister an event when the object is no longer in use. Otherwise garbage collection will be prevented.

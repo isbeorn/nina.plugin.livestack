@@ -59,7 +59,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             this.windowServiceFactory = windowServiceFactory;
             this.cameraMediator = cameraMediator;
             this.messageBroker = messageBroker;
-            profileService.ActiveProfile.PropertyChanged += ActiveProfile_PropertyChanged;
+            profileService.ProfileChanged += ProfileService_ProfileChanged;
             InitializeQualityGates();
             tabs = new AsyncObservableCollection<IStackTab>();
             IsExpanded = true;
@@ -69,7 +69,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             messageBroker.Subscribe("Livestack_LivestackDockable_StopLiveStack", this);
         }
 
-        private void ActiveProfile_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e) {
+        private void ProfileService_ProfileChanged(object sender, EventArgs e) {
             foreach (var q in QualityGates) {
                 q.PropertyChanged -= QualityGate_PropertyChanged;
             }
@@ -96,6 +96,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private IStackTab selectedTab;
 
         private FrameProcessingSession activeSession;
+        private bool disposed;
         public int QueueEntries => activeSession?.QueueEntries ?? 0;
 
         private readonly IApplicationStatusMediator applicationStatusMediator;
@@ -107,6 +108,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         [RelayCommand(IncludeCancelCommand = true)]
         private async Task StartLiveStack(CancellationToken token) {
+            ObjectDisposedException.ThrowIf(disposed, this);
             Guid correlation = Guid.NewGuid();
             string workingDirectory = LivestackMediator.Plugin.WorkingDirectory;
             await using FrameProcessingSession session = new(async (item, frameToken) => {
@@ -512,7 +514,13 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         public void Dispose() {
+            if (disposed) return;
+            disposed = true;
             activeSession?.Cancel();
+            profileService.ProfileChanged -= ProfileService_ProfileChanged;
+            foreach (IQualityGate gate in QualityGates) gate.PropertyChanged -= QualityGate_PropertyChanged;
+            messageBroker.Unsubscribe("Livestack_LivestackDockable_StartLiveStack", this);
+            messageBroker.Unsubscribe("Livestack_LivestackDockable_StopLiveStack", this);
         }
 
         public async Task OnMessageReceived(IMessage message) {
