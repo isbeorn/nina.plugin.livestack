@@ -133,6 +133,21 @@ namespace nina.plugin.livestack.test {
             Assert.Throws<ObjectDisposedException>(() => master.ReadPixelRow(0));
         }
 
+        [Test]
+        public void DarkWildcardsPreserveExposureMatching([Values(100, -1)] int gain, [Values(10, -1)] int offset,
+            [Values(2, 60, 120)] double exposure, [Values] bool flat) {
+            using CalibrationManagerSimd manager = new();
+            CalibrationFrameMeta dark = Meta("dark", CalibrationFrameType.DARK);
+            dark.Gain = gain;
+            dark.Offset = offset;
+            manager.RegisterDarkMaster(dark);
+            using CFitsioFITSReader reader = new(Path.Combine(directory, "light.fits"));
+            float[] result = flat
+                ? manager.ApplyFlatFrameCalibrationInPlace(reader, Width, Height, exposure, 100, 10, "L", false)
+                : manager.ApplyLightFrameCalibrationInPlace(reader, Width, Height, exposure, 100, 10, "L", false);
+            Assert.That(result[0], Is.EqualTo(exposure == 60 ? 0.28f : 0.3f).Within(1e-6));
+        }
+
         private void Register(ICalibrationManager manager, bool omitBias, int width = Width, int height = Height) {
             if (!omitBias) manager.RegisterBiasMaster(Meta("bias", CalibrationFrameType.BIAS, width, height));
             manager.RegisterDarkMaster(Meta("dark", CalibrationFrameType.DARK, width, height));

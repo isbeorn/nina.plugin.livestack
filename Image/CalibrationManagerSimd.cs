@@ -135,9 +135,9 @@ namespace NINA.Plugin.Livestack.Image {
         private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset) {
             CalibrationFrameMeta meta =
                 DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
-                ?? DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height)
-                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height)
-                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
             return GetOrCreateMaster(meta);
         }
 
