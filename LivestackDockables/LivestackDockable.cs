@@ -365,8 +365,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             var bayerPattern = SensorType.RGGB;
             if (profileService.ActiveProfile.CameraSettings.BayerPattern != BayerPatternEnum.Auto) {
                 bayerPattern = (SensorType)profileService.ActiveProfile.CameraSettings.BayerPattern;
-            } else if (!cameraMediator.GetInfo().Connected) {
-                bayerPattern = cameraMediator.GetInfo().SensorType;
+            } else if (cameraMediator.GetInfo() is { Connected: true } cameraInfo) {
+                bayerPattern = cameraInfo.SensorType;
             }
             var debayeredImage = ImageUtility.Debayer(image, System.Drawing.Imaging.PixelFormat.Format16bppGrayScale, true, false, bayerPattern);
 
