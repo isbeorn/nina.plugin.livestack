@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using System.Threading;
 using System.Windows;
 using System.Drawing.Imaging;
 using System.Drawing;
@@ -25,6 +26,11 @@ namespace NINA.Plugin.Livestack.Image {
         }
 
         public float[] PercentileClipping(List<CFitsioFITSReader> images, double lowerPercentile, double upperPercentile) {
+            return PercentileClipping(images, lowerPercentile, upperPercentile, CancellationToken.None);
+        }
+
+        public float[] PercentileClipping(List<CFitsioFITSReader> images, double lowerPercentile, double upperPercentile, CancellationToken token) {
+            token.ThrowIfCancellationRequested();
             if (images.Count == 0) { return []; }
 
             float[] imageMedian = new float[images.Count];
@@ -58,6 +64,7 @@ namespace NINA.Plugin.Livestack.Image {
                 }
 
                 for (int idxRow = 0; idxRow < height; idxRow++) {
+                    token.ThrowIfCancellationRequested();
                     for (int i = 0; i < numberOfImages; i++) {
                         images[i].ReadPixelRowAsFloat(idxRow, rowBuffers[i]);
                     }

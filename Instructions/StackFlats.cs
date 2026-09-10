@@ -1,26 +1,17 @@
 using CommunityToolkit.Mvvm.ComponentModel;
-using MathNet.Numerics.Statistics;
 using Newtonsoft.Json;
 using NINA.Core.Model;
 using NINA.Core.Utility;
-using NINA.Image.FileFormat.FITS;
 using NINA.Image.Interfaces;
 using NINA.Plugin.Livestack.Image;
 using NINA.Plugin.Livestack.LivestackDockables;
-using NINA.Plugin.Livestack.Utility;
 using NINA.Profile.Interfaces;
 using NINA.Sequencer.Container;
 using NINA.Sequencer.SequenceItem;
 using NINA.WPF.Base.Interfaces.Mediator;
-using Nito.AsyncEx;
 using System;
-using System.Collections;
-using System.Collections.Generic;
 using System.ComponentModel.Composition;
-using System.Globalization;
 using System.IO;
-using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -36,10 +27,9 @@ namespace NINA.Plugin.Livestack.Instructions {
         private readonly IProfileService profileService;
         private IImageSaveMediator imageSaveMediator;
         private IApplicationStatusMediator applicationStatusMediator;
-        private CancellationTokenSource cts;
-        private AsyncProducerConsumerQueue<LiveStackItem> queue = new AsyncProducerConsumerQueue<LiveStackItem>(1000);
-        private Dictionary<string, List<string>> FlatsToIntegrate = new Dictionary<string, List<string>>();
-        private Task workerTask;
+        private FlatStackSession session;
+        private Func<object, BeforeFinalizeImageSavedEventArgs, Task> receive;
+        private Task previousWork = Task.CompletedTask;
 
         [ImportingConstructor]
         public StackFlats(IProfileService profileService, IImageSaveMediator imageSaveMediator, IApplicationStatusMediator applicationStatusMediator) {
@@ -60,8 +50,7 @@ namespace NINA.Plugin.Livestack.Instructions {
             return clone;
         }
 
-        [ObservableProperty]
-        private int queueEntries;
+        public int QueueEntries => session?.QueueEntries ?? 0;
 
         [ObservableProperty]
         [property: JsonProperty]
@@ -89,202 +78,61 @@ namespace NINA.Plugin.Livestack.Instructions {
         }
 
         public override async Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token) {
-            var workTask = Task.Run(async () => {
-                var workingDir = LivestackMediator.Plugin.WorkingDirectory;
-                Logger.Info("Stop listening for flat frames to calibrate");
-                queue.CompleteAdding();
-                imageSaveMediator.BeforeFinalizeImageSaved -= ImageSaveMediator_BeforeFinalizeImageSaved;
-
-                try {
-                    if (queueEntries <= 0 && FlatsToIntegrate.Keys.Count == 0) {
-                        Logger.Info("No flat frames to stack");
-                    } else {
-                        Logger.Info("Finishing up remaining flat calibration");
-                        progress?.Report(new ApplicationStatus() { Status = $"Waiting for flat calibration to finish" });
-                        await workerTask;
-
-                        foreach (var filter in FlatsToIntegrate.Keys) {
-                            try {
-                                var list = FlatsToIntegrate[filter].ToArray();
-
-                                if (list.Length < 3) {
-                                    throw new Exception($"Not enough flats to generate masters for {filter}");
-                                }
-
-                                Logger.Info($"Generating flat master for filter {filter}");
-                                progress?.Report(new ApplicationStatus() { Status = $"Generating flat master for filter {filter}" });
-
-                                using (var fitsFiles = new DisposableList<CFitsioFITSReader>()) {
-                                    foreach (var file in list) {
-                                        try {
-                                            fitsFiles.Add(new CFitsioFITSReader(file));
-                                        } catch (Exception ex) {
-                                            Logger.Error($"Failed to open flat frame file {file}", ex);
-                                        }
-                                    }
-
-                                    Logger.Info($"Stacking flat for filter {filter} using {fitsFiles.Count} frames");
-                                    var stack = LivestackMediator.GetImageMath().PercentileClipping(fitsFiles, 0.2, 0.1);
-
-                                    var target = RetrieveTarget(this.Parent);
-                                    var outputDir = Path.Combine(workingDir, "stacks");
-                                    if (!Directory.Exists(outputDir)) { Directory.CreateDirectory(outputDir); }
-                                    var output = Path.Combine(workingDir, "stacks", CoreUtil.ReplaceAllInvalidFilenameChars($"MASTER_FLAT_{target}_{filter}.fits"));
-                                    output = CoreUtil.GetUniqueFilePath(output, "{0}_{1}");
-
-                                    Logger.Info($"Writing master flat {output}");
-                                    var stackFits = new CFitsioFITSExtendedWriter(output, stack, fitsFiles[0].Width, fitsFiles[0].Height, CfitsioNative.COMPRESSION.NOCOMPRESS);
-                                    var metaData = fitsFiles[0].RestoreMetaData();
-                                    stackFits.PopulateHeaderCards(metaData);
-                                    stackFits.Close();
-
-                                    var calibrationMeta = new CalibrationFrameMeta(CalibrationFrameType.FLAT, output, 0, 0, 0, filter, fitsFiles[0].Width, fitsFiles[0].Height, (float)stack.Mean());
-                                    LivestackMediator.CalibrationVM.AddSessionFlatMaster(calibrationMeta);
-                                }
-                                if (!LivestackMediator.Plugin.SaveCalibratedFlats) {
-                                    Logger.Info($"Cleaning up flat files for filter {filter}");
-                                    foreach (var file in list) {
-                                        try {
-                                            File.Delete(file);
-                                        } catch (Exception ex) {
-                                            Logger.Error(ex);
-                                        }
-                                    }
-                                }
-                            } catch (Exception ex) {
-                                Logger.Error($"Failed to generate flat master for filter {filter}", ex);
-                            }
-                        }
-                    }
-                } finally {
-                }
-            });
-
-            if (WaitForStack) {
-                await workTask;
-            }
+            Unsubscribe();
+            FlatStackSession current = session;
+            if (current == null) return;
+            Task work = current.CompleteAsync(progress, token);
+            previousWork = Task.WhenAll(previousWork, ObserveCompletionAsync(work));
+            if (WaitForStack) await work;
         }
 
         public override void SequenceBlockInitialize() {
-            try {
-                cts?.Dispose();
-            } catch (Exception) { }
-
-            cts = new CancellationTokenSource();
-
-            FlatsToIntegrate.Clear();
-            queue = new AsyncProducerConsumerQueue<LiveStackItem>(1000);
-            imageSaveMediator.BeforeFinalizeImageSaved += ImageSaveMediator_BeforeFinalizeImageSaved;
-            workerTask = StartCalibrationQueueWorker();
+            SequenceBlockTeardown();
+            string workingDirectory = LivestackMediator.Plugin.WorkingDirectory;
+            FlatStackSession current = new(LivestackMediator.CalibrationVM, workingDirectory, RetrieveTarget(Parent),
+                LivestackMediator.Plugin.SaveCalibratedFlats, previousWork, () => RaisePropertyChanged(nameof(QueueEntries)));
+            session = current;
+            receive = (sender, e) => e.Image.RawImageData.MetaData.Image.ImageType == "FLAT"
+                ? current.EnqueueAsync(token => PrepareFlatAsync(e, workingDirectory, token))
+                : Task.CompletedTask;
+            imageSaveMediator.BeforeFinalizeImageSaved += receive;
         }
 
         public override void SequenceBlockTeardown() {
-            imageSaveMediator.BeforeFinalizeImageSaved -= ImageSaveMediator_BeforeFinalizeImageSaved;
-            try {
-                cts?.Cancel();
-            } catch (Exception) { }
-        }
-
-        private async Task ImageSaveMediator_BeforeFinalizeImageSaved(object sender, BeforeFinalizeImageSavedEventArgs e) {
-            if (e.Image.RawImageData.MetaData.Image.ImageType == NINA.Equipment.Model.CaptureSequence.ImageTypes.FLAT) {
-                await Task.Run(async () => {
-                    try {
-                        // Only retrieve the filename part of the pattern
-                        var pattern = Path.GetFileName(profileService.ActiveProfile.ImageFileSettings.GetFilePattern(e.Image.RawImageData.MetaData.Image.ImageType));
-
-                        var path = await e.Image.RawImageData.SaveToDisk(
-                            new NINA.Image.FileFormat.FileSaveInfo() {
-                                FilePath = Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "temp"),
-                                FilePattern = pattern,
-                                FileType = Core.Enum.FileTypeEnum.FITS
-                            },
-                            default, true, e.Patterns
-                        );
-                        await queue.EnqueueAsync(new LiveStackItem(path: path,
-                                                                   target: e.Image.RawImageData.MetaData.Target.Name,
-                                                                   filter: e.Image.RawImageData.MetaData.FilterWheel.Filter,
-                                                                   exposureTime: e.Image.RawImageData.MetaData.Image.ExposureTime,
-                                                                   gain: e.Image.RawImageData.MetaData.Camera.Gain,
-                                                                   offset: e.Image.RawImageData.MetaData.Camera.Offset,
-                                                                   width: e.Image.RawImageData.Properties.Width,
-                                                                   height: e.Image.RawImageData.Properties.Height,
-                                                                   bitDepth: (int)profileService.ActiveProfile.CameraSettings.BitDepth,
-                                                                   isBayered: e.Image.RawImageData.Properties.IsBayered,
-                                                                   analysis: e.Image.RawImageData.StarDetectionAnalysis,
-                                                                   metaData: e.Image.RawImageData.MetaData
-                                                                   ));
-                        Interlocked.Increment(ref queueEntries);
-                        RaisePropertyChanged(nameof(QueueEntries));
-                    } catch (Exception) {
-                    }
-                });
+            Unsubscribe();
+            // Normal background completion must survive block teardown. Its execution token still cancels it.
+            if (session != null && !session.IsCompleting) {
+                previousWork = Task.WhenAll(previousWork, ObserveCompletionAsync(session.AbortAsync()));
             }
         }
 
-        private async Task StartCalibrationQueueWorker() {
+        private void Unsubscribe() {
+            if (receive == null) return;
+            imageSaveMediator.BeforeFinalizeImageSaved -= receive;
+            receive = null;
+        }
+
+        private static async Task ObserveCompletionAsync(Task work) {
+            try { await work.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { Logger.Error(ex); }
+        }
+
+        private async Task<LiveStackItem> PrepareFlatAsync(BeforeFinalizeImageSavedEventArgs e, string workingDirectory, CancellationToken token) {
+            IImageData image = e.Image.RawImageData;
+            string pattern = Path.GetFileName(profileService.ActiveProfile.ImageFileSettings.GetFilePattern(image.MetaData.Image.ImageType));
+            string path = await image.SaveToDisk(new NINA.Image.FileFormat.FileSaveInfo {
+                FilePath = Path.Combine(workingDirectory, "temp"), FilePattern = pattern, FileType = Core.Enum.FileTypeEnum.FITS
+            }, token, true, e.Patterns).ConfigureAwait(false);
             try {
-                var workingDir = LivestackMediator.Plugin.WorkingDirectory;
-                if (!Directory.Exists(workingDir)) {
-                    Directory.CreateDirectory(workingDir);
-                }
-
-                var progress = new Progress<ApplicationStatus>((p) => applicationStatusMediator.StatusUpdate(p));
-                var token = cts.Token;
-
-                using var calibrationManager = LivestackMediator.CreateCalibrationManager();
-
-                while (await queue.OutputAvailableAsync(token)) {
-                    try {
-                        token.ThrowIfCancellationRequested();
-                        var item = await queue.DequeueAsync(token);
-
-                        Logger.Debug($"Preparing flat frame for stack {item.Path}");
-
-                        var filter = string.IsNullOrWhiteSpace(item.Filter) ? LiveStackBag.NOFILTER : item.Filter;
-                        var destinationFolder = Path.Combine(workingDir, "calibrated", "flat", filter);
-                        if (!Directory.Exists(destinationFolder)) {
-                            Directory.CreateDirectory(destinationFolder);
-                        }
-
-                        var fileName = Path.GetFileNameWithoutExtension(item.Path) + "_c" + ".fits";
-                        var destinationFile = CoreUtil.GetUniqueFilePath(Path.Combine(destinationFolder, fileName), "{0}_{1}");
-
-                        foreach (var meta in LivestackMediator.CalibrationVM.BiasLibrary) {
-                            calibrationManager.RegisterBiasMaster(meta);
-                        }
-                        foreach (var meta in LivestackMediator.CalibrationVM.DarkLibrary) {
-                            calibrationManager.RegisterDarkMaster(meta);
-                        }
-                        using ImageBufferLease frame = ImageBufferPool.Shared.Rent(AffineResampler.GetLength(item.Width, item.Height));
-                        float[] theImageArray = frame.Buffer;
-                        using (CFitsioFITSReader reader = new CFitsioFITSReader(item.Path)) {
-                            calibrationManager.ApplyFlatFrameCalibrationInto(reader, theImageArray, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered, token);
-                        }
-
-                        Logger.Debug("Computing median after calibration");
-                        var median = theImageArray.Median();
-
-                        Logger.Info($"Saving calibrated flat frame at {destinationFile}");
-                        var calibratedFits = new CFitsioFITSExtendedWriter(destinationFile, theImageArray, item.Width, item.Height, CfitsioNative.COMPRESSION.NOCOMPRESS);
-                        calibratedFits.PopulateHeaderCards(item.MetaData);
-                        calibratedFits.AddHeader("MEDIAN", median, "");
-                        calibratedFits.Close();
-
-                        if (!FlatsToIntegrate.ContainsKey(filter)) {
-                            FlatsToIntegrate[filter] = new List<string>();
-                        }
-                        FlatsToIntegrate[filter].Add(destinationFile);
-
-                        File.Delete(item.Path);
-                    } catch (OperationCanceledException) {
-                        throw;
-                    } catch (Exception ex) {
-                        Logger.Error(ex);
-                    }
-                    Interlocked.Decrement(ref queueEntries);
-                    RaisePropertyChanged(nameof(QueueEntries));
-                }
-            } catch (OperationCanceledException) { }
+                return new LiveStackItem(path, image.MetaData.Target.Name, image.MetaData.FilterWheel.Filter,
+                    image.MetaData.Image.ExposureTime, image.MetaData.Camera.Gain, image.MetaData.Camera.Offset,
+                    image.Properties.Width, image.Properties.Height, image.Properties.BitDepth, image.Properties.IsBayered,
+                    image.StarDetectionAnalysis, image.MetaData);
+            } catch {
+                File.Delete(path);
+                throw;
+            }
         }
     }
 }
