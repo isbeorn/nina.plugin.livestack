@@ -279,7 +279,7 @@ namespace NINA.Plugin.Livestack.Image {
                 ushort* ptr = (ushort*)bitmapData.Scan0;
                 for (int y = 0; y < height; y++) {
                     for (int x = 0; x < width; x++) {
-                        var pixel = (ushort)(data[y * width + x] * ushort.MaxValue);
+                        ushort pixel = Extensions.ToUShort(data[y * width + x]);
                         pixelValueCounts[pixel]++;
                         ptr[y * stride + x] = pixel;
                     }

@@ -29,9 +29,13 @@ namespace NINA.Plugin.Livestack {
 
             ushort[] result = new ushort[source.Length];
             for (int i = 0; i < source.Length; i++) {
-                result[i] = (ushort)Math.Clamp(source[i] * ushort.MaxValue, 0, ushort.MaxValue);
+                result[i] = ToUShort(source[i]);
             }
             return result;
+        }
+
+        internal static ushort ToUShort(float value) {
+            return float.IsNaN(value) ? (ushort)0 : (ushort)Math.Clamp(value * ushort.MaxValue, 0, ushort.MaxValue);
         }
 
         public static float[] ToFloatArray(this ushort[] source) {
