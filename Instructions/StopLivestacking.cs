@@ -38,11 +38,7 @@ namespace NINA.Plugin.Livestack.Instructions {
 
         public override async Task Execute(IProgress<ApplicationStatus> progress, CancellationToken token) {
             Logger.Info("Stopping up live stack");
-            await Application.Current.Dispatcher.BeginInvoke(() => {
-                if (LivestackMediator.LiveStackDockable.StartLiveStackCommand.IsRunning) {
-                    LivestackMediator.LiveStackDockable.StartLiveStackCancelCommand.Execute(null);
-                }
-            });
+            await Application.Current.Dispatcher.InvokeAsync(() => LivestackMediator.LiveStackDockable.StopAsync()).Task.Unwrap();
         }
     }
 }

@@ -60,12 +60,15 @@ namespace NINA.Plugin.Livestack {
             OpenWorkingFolderDiagCommand = new GalaSoft.MvvmLight.Command.RelayCommand(OpenWorkingFolderDiag);
         }
 
-        public override Task Teardown() {
+        public override async Task Teardown() {
+            if (LivestackMediator.LiveStackDockable != null) {
+                await LivestackMediator.LiveStackDockable.StopAsync();
+            }
             ImageBufferPool.Shared.Trim();
             // Make sure to unregister an event when the object is no longer in use. Otherwise garbage collection will be prevented.
             profileService.ProfileChanged -= ProfileService_ProfileChanged;
 
-            return base.Teardown();
+            await base.Teardown();
         }
 
         private void ProfileService_ProfileChanged(object sender, EventArgs e) {

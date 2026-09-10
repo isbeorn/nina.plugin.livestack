@@ -27,7 +27,6 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Media;
@@ -96,75 +95,57 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         [ObservableProperty]
         private IStackTab selectedTab;
 
-        private int queueEntries;
-        public int QueueEntries { get => queueEntries; }
+        private FrameProcessingSession activeSession;
+        public int QueueEntries => activeSession?.QueueEntries ?? 0;
 
-        private Channel<LiveStackItem> channel;
         private readonly IApplicationStatusMediator applicationStatusMediator;
         private readonly IImageSaveMediator imageSaveMediator;
         private readonly IImageDataFactory imageDataFactory;
         private readonly IWindowServiceFactory windowServiceFactory;
         private readonly ICameraMediator cameraMediator;
         private readonly IMessageBroker messageBroker;
-        private Guid? stackSessionId = null;
 
         [RelayCommand(IncludeCancelCommand = true)]
-        private Task StartLiveStack(CancellationToken token) {
-            return Task.Run(async () => {
+        private async Task StartLiveStack(CancellationToken token) {
+            Guid correlation = Guid.NewGuid();
+            string workingDirectory = LivestackMediator.Plugin.WorkingDirectory;
+            await using FrameProcessingSession session = new(async (item, frameToken) => {
+                StatusUpdate("Received new frame", item);
                 try {
-                    IsExpanded = false;
-                    ResetQueueEntries();
-                    channel = Channel.CreateBounded<LiveStackItem>(1000);
-                    var localQueue = channel;
-                    this.imageSaveMediator.BeforeFinalizeImageSaved += ImageSaveMediator_BeforeFinalizeImageSaved;
-                    this.stackSessionId = Guid.NewGuid();
-                    _ = messageBroker.Publish(new LiveStackStatusBroadcast(LiveStackStatus.Running, this.stackSessionId.Value));
-                    applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "Waiting for first frame" });
-
-                    try {
-                        await foreach (var item in channel.Reader.ReadAllAsync(token)) {
-                            try {
-                                StatusUpdate("Received new frame", item);
-                                DecrementQueueEntries();
-
-                                try {
-                                    await ProcessFrameAsync(item, stackSessionId.Value, token);
-                                } finally {
-                                    try {
-                                        File.Delete(item.Path);
-                                    } finally {
-                                        LiveStackMemoryPressure.CollectIfNeeded("frame completed");
-                                    }
-                                }
-
-                            } catch (OperationCanceledException) {
-                            } catch (Exception ex) {
-                                Logger.Error(ex);
-                            } finally {
-                                applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "Waiting for next frame" });
-                            }
-                        }
-                    } catch (OperationCanceledException) { }
-
-                    if (localQueue != null) {
-                        try {
-                            localQueue.Writer.TryComplete();
-                            await foreach (var item in channel.Reader.ReadAllAsync()) {
-                                StatusUpdate("Flushing queue", item);
-                                File.Delete(item.Path);
-                            }
-                        } catch { }
-                    }
+                    await ProcessFrameAsync(item, correlation, frameToken);
                 } finally {
-                    applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "" });
-                    this.imageSaveMediator.BeforeFinalizeImageSaved -= ImageSaveMediator_BeforeFinalizeImageSaved;
-                    _ = messageBroker.Publish(new LiveStackStatusBroadcast(LiveStackStatus.Stopped, this.stackSessionId.Value));
-                    this.stackSessionId = null;
-                    IsExpanded = true;
-                    ResetQueueEntries();
-                    LiveStackMemoryPressure.TrimAfterReleasingLargeBuffers("live stack stopped");
+                    applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "Waiting for next frame" });
                 }
-            });
+            }, NotifyQueueEntriesChanged, token);
+            Func<object, BeforeFinalizeImageSavedEventArgs, Task> receive = (sender, e) => {
+                IImageData image = e.Image.RawImageData;
+                return image.MetaData.Image.ImageType == "LIGHT" || image.MetaData.Image.ImageType == "SNAPSHOT"
+                    ? session.EnqueueAsync(frameToken => PrepareFrameAsync(image, e.Patterns, frameToken, workingDirectory))
+                    : Task.CompletedTask;
+            };
+            activeSession = session;
+            try {
+                IsExpanded = false;
+                imageSaveMediator.BeforeFinalizeImageSaved += receive;
+                _ = messageBroker.Publish(new LiveStackStatusBroadcast(LiveStackStatus.Running, correlation));
+                applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "Waiting for first frame" });
+                await session.Completion;
+            } finally {
+                imageSaveMediator.BeforeFinalizeImageSaved -= receive;
+                await session.DisposeAsync();
+                activeSession = null;
+                NotifyQueueEntriesChanged();
+                applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "" });
+                _ = messageBroker.Publish(new LiveStackStatusBroadcast(LiveStackStatus.Stopped, correlation));
+                IsExpanded = true;
+                LiveStackMemoryPressure.TrimAfterReleasingLargeBuffers("live stack stopped");
+            }
+        }
+
+        public async Task StopAsync() {
+            Task running = StartLiveStackCommand.ExecutionTask;
+            StartLiveStackCommand.Cancel();
+            if (running != null) await running;
         }
 
         [RelayCommand]
@@ -240,39 +221,6 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
 
             _ = RefreshSelectedTabAsync(value);
-        }
-
-        private async Task ImageSaveMediator_BeforeFinalizeImageSaved(object sender, BeforeFinalizeImageSavedEventArgs e) {
-            if (e.Image.RawImageData.MetaData.Image.ImageType == NINA.Equipment.Model.CaptureSequence.ImageTypes.LIGHT || e.Image.RawImageData.MetaData.Image.ImageType == NINA.Equipment.Model.CaptureSequence.ImageTypes.SNAPSHOT) {
-                _ = Task.Run(async () => {
-                    try {
-                        LiveStackItem item = await PrepareFrameAsync(e.Image.RawImageData, e.Patterns, default);
-                        await channel.Writer.WriteAsync(item);
-
-                        IncrementQueueEntries();
-                    } catch (Exception ex) {
-                        Logger.Error(ex);
-                    }
-                });
-            }
-        }
-
-        private void ResetQueueEntries() {
-            Interlocked.Exchange(ref queueEntries, 0);
-            NotifyQueueEntriesChanged();
-        }
-
-        private void IncrementQueueEntries() {
-            Interlocked.Increment(ref queueEntries);
-            NotifyQueueEntriesChanged();
-        }
-
-        private void DecrementQueueEntries() {
-            int updated = Interlocked.Decrement(ref queueEntries);
-            if (updated < 0) {
-                Interlocked.Exchange(ref queueEntries, 0);
-            }
-            NotifyQueueEntriesChanged();
         }
 
         private void NotifyQueueEntriesChanged() {
@@ -564,6 +512,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         public void Dispose() {
+            activeSession?.Cancel();
         }
 
         public async Task OnMessageReceived(IMessage message) {
