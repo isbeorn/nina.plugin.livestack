@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Fixed dark master selection when gain or offset is set to "Ignore" so the exposure time must still match.
+- Fixed automatic color-pattern detection for connected one-shot color cameras.
+- Fixed bright pixels turning dark in stack previews.
+- Stopping or restarting live stacking now waits for incoming frames to finish cleanup, preventing leftover temporary files or frames carrying over into a new session.
+- Quality gates now follow the active N.I.N.A. profile correctly.
+- Flat stacking now keeps repeated sequence blocks separate and correctly handles cancellation and the "Wait for flat stack?" option.
+- Faster calibration and color preview updates without keeping extra full-size images in memory.
 - Fixed growing memory use in the replay viewer when processing many frames or resetting stacks.
 - Added a standalone replay viewer to test saved captures without opening N.I.N.A., with step-by-step stacking and alignment feedback.
 - Better protection against poor alignment matches that could stretch or skew an image and spoil the stack.
