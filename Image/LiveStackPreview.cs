@@ -9,6 +9,9 @@ using System.Windows.Media;
 
 namespace NINA.Plugin.Livestack.Image {
     internal static class LiveStackPreview {
+        internal readonly record struct Settings(double StretchFactor, double BlackClipping,
+            bool EnableBackgroundExtraction, double BackgroundExtractionAmount, int Downsample);
+
         // One expensive renderer across all tabs bounds native bitmaps and managed scratch.
         private static readonly SemaphoreSlim renderLock = new(1, 1);
 

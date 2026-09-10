@@ -24,6 +24,17 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
     public partial class LiveStackTab : BaseVM, IStackTab {
         private LiveStackBag bag;
+        private LiveStackPreview.Settings? renderedSettings;
+        private long renderedRevision;
+
+        partial void OnStackImageChanged(BitmapSource value) {
+            renderedSettings = null;
+        }
+
+        internal BitmapSource GetRenderedPreview(LiveStackPreview.Settings settings) {
+            return renderedSettings == settings && renderedRevision == bag.Revision && (renderedRevision & 1) == 0
+                ? StackImage : null;
+        }
 
         [ObservableProperty]
         private BitmapSource stackImage;
@@ -92,7 +103,13 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         [RelayCommand]
         public Task Refresh(CancellationToken token) {
             return LiveStackPreview.RenderAsync(() => {
-                StackImage = Render(StretchFactor, BlackClipping, EnableBackgroundExtraction, BackgroundExtractionAmount, Downsample, token);
+                LiveStackPreview.Settings settings = new(StretchFactor, BlackClipping, EnableBackgroundExtraction, BackgroundExtractionAmount, Downsample);
+                long revision = bag.Revision;
+                BitmapSource source = Render(settings.StretchFactor, settings.BlackClipping, settings.EnableBackgroundExtraction, settings.BackgroundExtractionAmount, settings.Downsample, token);
+                token.ThrowIfCancellationRequested();
+                StackImage = source;
+                renderedRevision = revision;
+                renderedSettings = settings;
                 StackCount = bag.ImageCount;
             }, token);
         }

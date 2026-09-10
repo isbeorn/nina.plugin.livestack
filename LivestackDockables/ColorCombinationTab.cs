@@ -167,7 +167,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 if (blueBitmap == null) {
                     return;
                 }
-                using var colorBitmap = LivestackMediator.GetImageMath().MergeGray16ToRGB48(redBitmap.Bitmap, greenBitmap.Bitmap, blueBitmap.Bitmap);
+                using var colorBitmap = LivestackMediator.GetImageMath().MergeGray16ToRGB48(redBitmap, greenBitmap, blueBitmap);
                 if (EnableGreenDeNoise) {
                     LivestackMediator.GetImageMath().ApplyGreenDeNoiseInPlace(colorBitmap, GreenDeNoiseAmount);
                 }
@@ -238,8 +238,13 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
         }
 
-        private ImageMath.BitmapWithMedian RenderChannel(LiveStackTab tab, double stretchFactor, double blackClipping, CancellationToken token) {
+        private Bitmap RenderChannel(LiveStackTab tab, double stretchFactor, double blackClipping, CancellationToken token) {
             token.ThrowIfCancellationRequested();
+            LiveStackPreview.Settings settings = new(stretchFactor, blackClipping, EnableBackgroundExtraction, BackgroundExtractionAmount, Downsample);
+            if (channelsAlreadyAligned && tab.GetRenderedPreview(settings) is BitmapSource preview) {
+                // Copy the published preview at display resolution. No extra image is retained.
+                return ImageUtility.BitmapFromSource(preview);
+            }
             bool needsAlignment = !channelsAlreadyAligned && !ReferenceEquals(tab, red);
             using ImageBufferLease aligned = needsAlignment ? AlignTab(red, tab, token) : null;
             if (needsAlignment && aligned == null) {
@@ -252,7 +257,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 LivestackMediator.GetImageMath().CreateBackgroundExtractedPreviewInto(pixels, output, tab.Properties.Width, tab.Properties.Height, BackgroundExtractionAmount);
                 pixels = output;
             }
-            return LiveStackPreview.CreateStretchedBitmap(pixels, tab.Properties, stretchFactor, blackClipping, Downsample, token);
+            // The caller owns the bitmap; channel statistics are no longer needed after stretching.
+            return LiveStackPreview.CreateStretchedBitmap(pixels, tab.Properties, stretchFactor, blackClipping, Downsample, token).Bitmap;
         }
 
         private string GetStackFilePath() {

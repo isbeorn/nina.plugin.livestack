@@ -43,6 +43,10 @@ namespace NINA.Plugin.Livestack.Image {
         public string Target { get; }
         public int ImageCount { get; private set; }
 
+        // Odd while pixels are changing, even when stable. Previews from an older or active write cannot be reused.
+        private long revision;
+        internal long Revision => Volatile.Read(ref revision);
+
         private Array contributionCounts;
 
         private static readonly double[,] identity = { { 1d, 0d, 0d }, { 0d, 1d, 0d }, { 0d, 0d, 1d } };
@@ -127,20 +131,25 @@ namespace NINA.Plugin.Livestack.Image {
             ValidateAddition(image, affineMatrix);
             float[] stack = Stack ?? new float[image.Length];
             Array counts = GetContributionCounts(image.Length);
-            switch (counts) {
-                case byte[] small:
-                    AffineResampler.AccumulateValidated(image, stack, small, 0, Properties.Width, Properties.Height, affineMatrix, flippedImage);
-                    break;
-                case ushort[] medium:
-                    AffineResampler.AccumulateValidated(image, stack, medium, 0, Properties.Width, Properties.Height, affineMatrix, flippedImage);
-                    break;
-                case uint[] large:
-                    AffineResampler.AccumulateValidated(image, stack, large, 0, Properties.Width, Properties.Height, affineMatrix, flippedImage);
-                    break;
+            Interlocked.Increment(ref revision);
+            try {
+                switch (counts) {
+                    case byte[] small:
+                        AffineResampler.AccumulateValidated(image, stack, small, 0, Properties.Width, Properties.Height, affineMatrix, flippedImage);
+                        break;
+                    case ushort[] medium:
+                        AffineResampler.AccumulateValidated(image, stack, medium, 0, Properties.Width, Properties.Height, affineMatrix, flippedImage);
+                        break;
+                    case uint[] large:
+                        AffineResampler.AccumulateValidated(image, stack, large, 0, Properties.Width, Properties.Height, affineMatrix, flippedImage);
+                        break;
+                }
+                Stack = stack;
+                contributionCounts = counts;
+                ImageCount++;
+            } finally {
+                Interlocked.Increment(ref revision);
             }
-            Stack = stack;
-            contributionCounts = counts;
-            ImageCount++;
         }
 
         private Array GetContributionCounts(int length) {
@@ -182,18 +191,23 @@ namespace NINA.Plugin.Livestack.Image {
                 throw new ArgumentException("Reference pixels do not match the frame dimensions.", nameof(stack));
             }
             byte[] counts = new byte[stack.Length];
-            for (int i = 0; i < stack.Length; i++) {
-                if (float.IsFinite(stack[i])) {
-                    counts[i] = 1;
-                } else {
-                    stack[i] = 0;
+            Interlocked.Increment(ref revision);
+            try {
+                for (int i = 0; i < stack.Length; i++) {
+                    if (float.IsFinite(stack[i])) {
+                        counts[i] = 1;
+                    } else {
+                        stack[i] = 0;
+                    }
                 }
+                Properties = properties;
+                ReferenceImageStars = referenceStars;
+                Stack = stack;
+                contributionCounts = counts;
+                ImageCount = 1;
+            } finally {
+                Interlocked.Increment(ref revision);
             }
-            Properties = properties;
-            ReferenceImageStars = referenceStars;
-            Stack = stack;
-            contributionCounts = counts;
-            ImageCount = 1;
         }
 
         private string GetStackFilePath() {
