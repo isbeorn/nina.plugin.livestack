@@ -417,28 +417,21 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 var colorTab = Tabs.Where(x => x is ColorCombinationTab && x.Target == tab.Target).FirstOrDefault() as ColorCombinationTab;
                 if (colorTab != null) {
                     colorTab.MarkDirty();
-                    if (ShouldRefreshColorTab(colorTab)) {
-                        StatusUpdate("Refreshing color combined stack", item);
-                        await colorTab.Refresh(token);
+                    // Broker subscribers need a current RGB image regardless of tab selection.
+                    StatusUpdate("Refreshing color combined stack", item);
+                    await colorTab.Refresh(token);
 
-                        if (LivestackMediator.Plugin.SaveStackedLights) {
-                            StatusUpdate("Saving color combined stack", item);
-                            colorTab.AutoSaveToDisk();
-                        }
-
-                        _ = messageBroker.Publish(new LivestackBroadcast(LiveStackBroadcastContent.Color(colorTab.StackCountRed, colorTab.StackCountGreen, colorTab.StackCountBlue, colorTab.Filter, colorTab.Target, colorTab.StackImage), correlation));
+                    if (LivestackMediator.Plugin.SaveStackedLights) {
+                        StatusUpdate("Saving color combined stack", item);
+                        colorTab.AutoSaveToDisk();
                     }
+
+                    _ = messageBroker.Publish(new LivestackBroadcast(LiveStackBroadcastContent.Color(colorTab.StackCountRed, colorTab.StackCountGreen, colorTab.StackCountBlue, colorTab.Filter, colorTab.Target, colorTab.StackImage), correlation));
                 }
                 return true;
             } finally {
                 tab.Locked = false;
             }
-        }
-
-        private bool ShouldRefreshColorTab(ColorCombinationTab colorTab) {
-            return ReferenceEquals(SelectedTab, colorTab)
-                || colorTab.StackImage == null
-                || LivestackMediator.Plugin.SaveStackedLights;
         }
 
         private ImageBufferLease CalibrateFrame(LiveStackItem item, CancellationToken token) {

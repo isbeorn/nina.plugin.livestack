@@ -153,6 +153,8 @@ namespace nina.plugin.livestack.test {
                 ColorCombinationTab color = model.Host.Dockable.Tabs.OfType<ColorCombinationTab>().Single();
                 Assert.That(color.StackImage, Is.Not.Null);
                 Assert.That(color.StackImage.IsFrozen, Is.True);
+                Assert.That(model.Host.Dockable.SelectedTab, Is.Not.SameAs(color));
+                Assert.That(new[] { color.StackCountRed, color.StackCountGreen, color.StackCountBlue }, Is.EqualTo(new[] { 2, 2, 2 }));
                 await model.ResetCommand.ExecuteAsync(null);
                 Assert.That(model.Host.Dockable.Tabs, Is.Empty);
                 await model.StepCommand.ExecuteAsync(null);
@@ -230,8 +232,6 @@ namespace nina.plugin.livestack.test {
                 await using ReplayViewModel model = new() { SensorMode = sensorMode };
                 await model.AddPathsAsync(new[] { Sample("light_b_1.fits"), Sample("light_b_2.fits") });
                 await model.StepCommand.ExecuteAsync(null);
-                // Color previews refresh lazily when their tab is selected.
-                if (sensorMode != "Mono") model.Host.Dockable.SelectedTab = model.Host.Dockable.Tabs.OfType<ColorCombinationTab>().Single();
                 WeakReference[] firstPreviews = ObservePreviews(model);
                 Assert.That(firstPreviews, Has.Length.EqualTo(sensorMode == "Mono" ? 1 : 4));
                 await model.StepCommand.ExecuteAsync(null);
