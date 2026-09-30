@@ -1,6 +1,6 @@
 # Livestack
 
-## 1.1.4.0
+## 1.1.4.1
 
 - Fixed dark master selection when gain or offset is set to "Ignore" so the exposure time must still match.
 - Fixed automatic color-pattern detection for connected one-shot color cameras.
