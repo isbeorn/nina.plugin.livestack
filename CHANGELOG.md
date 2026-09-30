@@ -1,6 +1,6 @@
 # Livestack
 
-## Unreleased
+## 1.1.4.0
 
 - Fixed dark master selection when gain or offset is set to "Ignore" so the exposure time must still match.
 - Fixed automatic color-pattern detection for connected one-shot color cameras.
@@ -21,7 +21,7 @@
 ## 1.1.3.0
 - Fixed live-stack alignment star selection when detector brightness metadata is unusable.
     - Alignment now falls back to valid detected star centroids when MaxBrightness is saturated, invalid, or NaN, instead of producing zero filtered stars.
-- Improved “not enough alignment stars” logging with reject-reason diagnostics for invalid position, outside frame, invalid brightness, saturated brightness, HFR outlier, and fallback candidate count.
+- Improved "not enough alignment stars" logging with reject-reason diagnostics for invalid position, outside frame, invalid brightness, saturated brightness, HFR outlier, and fallback candidate count.
 
 ## 1.1.2.0
 - Added more logging for failure cases
