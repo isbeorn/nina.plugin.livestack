@@ -6,6 +6,7 @@ using NINA.Image.ImageAnalysis;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Intrinsics;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -355,9 +356,23 @@ namespace NINA.Plugin.Livestack.Image {
                 double[] nearestSelectedDistanceSquared,
                 List<Point> selectedStars) {
             selected[selectedIndex] = true;
-            selectedStars.Add(candidateStars[selectedIndex].Position);
+            Point anchor = candidateStars[selectedIndex].Position;
+            selectedStars.Add(anchor);
 
-            for (int i = 0; i < candidateStars.Count; i++) {
+            int i = 0;
+            for (; i <= candidateStars.Count - 4; i += 4) {
+                Point p0 = candidateStars[i].Position, p1 = candidateStars[i + 1].Position;
+                Point p2 = candidateStars[i + 2].Position, p3 = candidateStars[i + 3].Position;
+                // DistanceSquared subtracts float coordinates before widening. Preserve that rounding.
+                Vector128<float> dx = Vector128.Create(anchor.X) - Vector128.Create(p0.X, p1.X, p2.X, p3.X);
+                Vector128<float> dy = Vector128.Create(anchor.Y) - Vector128.Create(p0.Y, p1.Y, p2.Y, p3.Y);
+                Vector256<double> x = Vector256.WidenLower(dx.ToVector256()), y = Vector256.WidenLower(dy.ToVector256());
+                Vector256<double> distance = x * x + y * y;
+                Vector256<double> previous = Vector256.Create<double>(nearestSelectedDistanceSquared.AsSpan(i));
+                // Selected entries are never read again, so updating their distance needs no mask.
+                Vector256.Min(previous, distance).CopyTo(nearestSelectedDistanceSquared.AsSpan(i));
+            }
+            for (; i < candidateStars.Count; i++) {
                 if (selected[i]) {
                     continue;
                 }

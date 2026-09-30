@@ -1,10 +1,12 @@
 using System;
 using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using System.Threading.Tasks;
 
 namespace NINA.Plugin.Livestack.Image {
     /// <summary>Bilinear inverse mapping shared by previews and fused stack accumulation.</summary>
-    internal static class AffineResampler {
+    internal static partial class AffineResampler {
         internal static int GetLength(int width, int height) {
             if (width <= 0 || height <= 0) {
                 throw new ArgumentOutOfRangeException(nameof(width), "Image dimensions must be positive.");
@@ -18,8 +20,17 @@ namespace NINA.Plugin.Livestack.Image {
             Validate(source, destination, width, height, matrix);
             double outputScale = typeof(TDestination) == typeof(ushort) ? ushort.MaxValue : 1;
             ProcessRows(width, height, y => {
+                // Keep the original operation order so subpixel coordinates and borders round identically.
+                double a = matrix[0, 0], by = matrix[0, 1] * y, tx = matrix[0, 2];
+                double c = matrix[1, 0], dy = matrix[1, 1] * y, ty = matrix[1, 2];
                 for (int x = 0; x < width; x++) {
-                    bool valid = TrySample(source, width, height, matrix, flipped, x, y, out float value);
+                    if (typeof(TDestination) == typeof(float) && x <= width - 4
+                        && TrySampleFour(source, width, height, x, a, by, tx, c, dy, ty, flipped, out Vector128<float> values)) {
+                        values.CopyTo(((float[])(object)destination).AsSpan(y * width + x));
+                        x += 3;
+                        continue;
+                    }
+                    bool valid = TrySample(source, width, height, a * x + by + tx, c * x + dy + ty, flipped, out float value);
                     destination[y * width + x] = valid ? TDestination.CreateSaturating(value * outputScale) : TDestination.Zero;
                 }
             });
@@ -42,8 +53,16 @@ namespace NINA.Plugin.Livestack.Image {
                 where TSource : unmanaged, INumberBase<TSource>
                 where TCount : unmanaged, INumberBase<TCount> {
             ProcessRows(width, height, y => {
+                // Hoist row-invariant work without accumulating coordinate drift across the row.
+                double a = matrix[0, 0], by = matrix[0, 1] * y, tx = matrix[0, 2];
+                double c = matrix[1, 0], dy = matrix[1, 1] * y, ty = matrix[1, 2];
                 for (int x = 0; x < width; x++) {
-                    if (!TrySample(source, width, height, matrix, flipped, x, y, out float value)) {
+                    if (x <= width - 4 && TrySampleFour(source, width, height, x, a, by, tx, c, dy, ty, flipped, out Vector128<float> values)) {
+                        AccumulateFour(stack, counts, uniformCount, y * width + x, values);
+                        x += 3;
+                        continue;
+                    }
+                    if (!TrySample(source, width, height, a * x + by + tx, c * x + dy + ty, flipped, out float value)) {
                         continue;
                     }
                     int index = y * width + x;
@@ -68,10 +87,9 @@ namespace NINA.Plugin.Livestack.Image {
             }
         }
 
-        private static bool TrySample<T>(T[] source, int width, int height, double[,] matrix, bool flipped, int x, int y, out float value)
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        private static bool TrySample<T>(T[] source, int width, int height, double sourceX, double sourceY, bool flipped, out float value)
                 where T : unmanaged, INumberBase<T> {
-            double sourceX = matrix[0, 0] * x + matrix[0, 1] * y + matrix[0, 2];
-            double sourceY = matrix[1, 0] * x + matrix[1, 1] * y + matrix[1, 2];
             if (flipped) {
                 sourceX = width - 1 - sourceX;
                 sourceY = height - 1 - sourceY;
@@ -95,6 +113,7 @@ namespace NINA.Plugin.Livestack.Image {
             return float.IsFinite(value);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private static double Interpolate(double first, double second, double fraction) {
             return fraction == 0 ? first : first + (second - first) * fraction;
         }

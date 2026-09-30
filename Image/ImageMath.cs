@@ -140,13 +140,27 @@ namespace NINA.Plugin.Livestack.Image {
                 ushort* ptrOutput = (ushort*)outputData.Scan0;
 
                 for (int y = 0; y < newHeight; y++) {
+                    int startY = y * factor;
+                    if (factor == 2 && startY + 1 < originalHeight) {
+                        ushort* top = ptrInput + startY * inputStride;
+                        ushort* bottom = top + inputStride;
+                        ushort* outputRow = ptrOutput + y * outputStride;
+                        int pairs = originalWidth / 2;
+                        for (int x = 0; x < pairs; x++) {
+                            int left = x * 2;
+                            outputRow[x] = (ushort)((top[left] + top[left + 1] + bottom[left] + bottom[left + 1]) / 4);
+                        }
+                        if ((originalWidth & 1) != 0) {
+                            outputRow[pairs] = (ushort)((top[originalWidth - 1] + bottom[originalWidth - 1]) / 2);
+                        }
+                        continue;
+                    }
                     for (int x = 0; x < newWidth; x++) {
                         int sum = 0;
                         int count = 0;
 
                         // Calculate the starting coordinates in the original image
                         int startX = x * factor;
-                        int startY = y * factor;
 
                         // Iterate over the block of pixels in the original image
                         for (int dy = 0; dy < factor; dy++) {

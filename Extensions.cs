@@ -35,7 +35,11 @@ namespace NINA.Plugin.Livestack {
         }
 
         internal static ushort ToUShort(float value) {
-            return float.IsNaN(value) ? (ushort)0 : (ushort)Math.Clamp(value * ushort.MaxValue, 0, ushort.MaxValue);
+            // Nonpositive values and NaN both fail this comparison and map to zero.
+            if (!(value > 0f)) {
+                return 0;
+            }
+            return value >= 1f ? ushort.MaxValue : (ushort)(value * ushort.MaxValue);
         }
 
         public static float[] ToFloatArray(this ushort[] source) {
