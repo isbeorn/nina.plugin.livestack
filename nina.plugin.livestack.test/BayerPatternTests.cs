@@ -21,7 +21,7 @@ namespace nina.plugin.livestack.test {
     public class BayerPatternTests {
         [Test]
         public async Task OscCallerUsesConfiguredOrConnectedSensorPattern(
-            [Values(SensorType.RGGB, SensorType.BGGR, SensorType.GRBG, SensorType.GBRG)] SensorType sensor,
+            [Values(SensorType.RGGB, SensorType.BGGR, SensorType.GRBG, SensorType.GBRG, SensorType.RGBG, SensorType.GRGB, SensorType.GBGR, SensorType.BGRG)] SensorType sensor,
             [Values] bool connected, [Values] bool automatic) {
             const int width = 16, height = 16;
             Mock<IProfileService> profile = new() { DefaultValue = DefaultValue.Mock };
@@ -48,10 +48,11 @@ namespace nina.plugin.livestack.test {
                 SensorType expectedPattern = automatic ? (connected ? sensor : SensorType.RGGB) : SensorType.GBRG;
                 var expected = ImageUtility.Debayer(raw.RenderBitmapSource(), System.Drawing.Imaging.PixelFormat.Format16bppGrayScale, true, false, expectedPattern);
                 ushort[]? redPixels = null;
+                bool usesBitmapPath = expectedPattern is SensorType.RGBG or SensorType.GRGB or SensorType.GBGR or SensorType.BGRG;
                 int calls = 0;
                 factory.Setup(f => f.CreateBaseImageData(It.IsAny<ushort[]>(), width, height, 16, false, It.IsAny<ImageMetaData>()))
                     .Returns((ushort[] data, int w, int h, int depth, bool bayered, ImageMetaData meta) => {
-                        if (++calls == 1) return raw;
+                        if (++calls == 1 && usesBitmapPath) return raw;
                         redPixels = data;
                         throw new InvalidOperationException("Red channel captured");
                     });

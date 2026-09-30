@@ -309,9 +309,6 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             var meta = new ImageMetaData(); // Set bare minimum for star detection resize factor
             meta.Camera.PixelSize = profileService.ActiveProfile.CameraSettings.PixelSize;
             meta.Telescope.FocalLength = profileService.ActiveProfile.TelescopeSettings.FocalLength;
-            var theImageArrayData = imageDataFactory.CreateBaseImageData(theImageArray.Buffer.ToUShortArray(), item.Width, item.Height, 16, false, meta);
-            theImageArray.Dispose();
-            var image = theImageArrayData.RenderBitmapSource();
             StatusUpdate("Debayering", item);
 
             var bayerPattern = SensorType.RGGB;
@@ -320,15 +317,21 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             } else if (cameraMediator.GetInfo() is { Connected: true } cameraInfo) {
                 bayerPattern = cameraInfo.SensorType;
             }
-            var debayeredImage = ImageUtility.Debayer(image, System.Drawing.Imaging.PixelFormat.Format16bppGrayScale, true, false, bayerPattern);
+            if (BayerChannelExtractor.TryExtract(theImageArray.Buffer, item.Width, item.Height, bayerPattern, out LRGBArrays channels)) {
+                theImageArray.Dispose();
+            } else {
+                var theImageArrayData = imageDataFactory.CreateBaseImageData(theImageArray.Buffer.ToUShortArray(), item.Width, item.Height, 16, false, meta);
+                theImageArray.Dispose();
+                var image = theImageArrayData.RenderBitmapSource();
+                channels = ImageUtility.Debayer(image, System.Drawing.Imaging.PixelFormat.Format16bppGrayScale, true, false, bayerPattern).Data;
+            }
 
             StatusUpdate("Aligning frame - red channel", item);
-            var redChannelData = imageDataFactory.CreateBaseImageData(debayeredImage.Data.Red, item.Width, item.Height, redTab.Properties.BitDepth, false, meta);
+            var redChannelData = imageDataFactory.CreateBaseImageData(channels.Red, item.Width, item.Height, redTab.Properties.BitDepth, false, meta);
             // We only need to detect the stars in one channel for OSC. The others should match.
             var channelStatistics = await redChannelData.Statistics;
-            var channelRender = redChannelData.RenderImage();
             if (NeedsStarDetection(redChannelData.StarDetectionAnalysis)) {
-                var render = channelRender.RawImageData.RenderImage();
+                var render = redChannelData.RenderImage();
                 render = await render.Stretch(profileService.ActiveProfile.ImageSettings.AutoStretchFactor, profileService.ActiveProfile.ImageSettings.BlackClipping, profileService.ActiveProfile.ImageSettings.UnlinkedStretch);
                 render = await render.DetectStars(false, profileService.ActiveProfile.ImageSettings.StarSensitivity, profileService.ActiveProfile.ImageSettings.NoiseReduction, token, default);
                 redChannelData.StarDetectionAnalysis = render.RawImageData.StarDetectionAnalysis;
@@ -346,7 +349,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
 
             // Solve once in red. The validated matrix also handles a meridian flip directly.
-            AlignmentResult alignment = redTab.AlignAndAdd(debayeredImage.Data.Red, imageProperties, stars, token);
+            AlignmentResult alignment = redTab.AlignAndAdd(channels.Red, imageProperties, stars, token);
             LogAlignment(alignment, item);
             if (!alignment.Success) {
                 return false;
@@ -360,8 +363,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 blueTab = new LiveStackTab(profileService, new LiveStackBag(redTab.Target, LiveStackBag.BLUE_OSC, imageProperties, item.MetaData, redTab.ReferenceStars));
                 Tabs.Add(blueTab);
             }
-            greenTab.AddTransformedImage(debayeredImage.Data.Green, matrix, false);
-            blueTab.AddTransformedImage(debayeredImage.Data.Blue, matrix, false);
+            greenTab.AddTransformedImage(channels.Green, matrix, false);
+            blueTab.AddTransformedImage(channels.Blue, matrix, false);
 
             await redTab.Refresh(token);
             await greenTab.Refresh(token);
