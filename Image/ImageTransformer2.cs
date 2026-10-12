@@ -1,5 +1,6 @@
 using Accord;
 using MathNet.Numerics.LinearAlgebra.Double;
+using MathNet.Numerics.LinearAlgebra.Factorization;
 using MathNet.Numerics.Statistics;
 using NINA.Core.Utility;
 using NINA.Image.ImageAnalysis;
@@ -1281,60 +1282,9 @@ namespace NINA.Plugin.Livestack.Image {
         private List<(Point Ref, Point Src, int Votes)> ComputeQuadMatchList(int[] votingMatrix, List<Point> referenceCatalog, List<Point> targetCatalog) {
             int rowCount = referenceCatalog.Count;
             int columnCount = targetCatalog.Count;
-            var matches = new List<Match>();
-
-            int[] rowBestScores = new int[rowCount];
-            int[] rowSecondBestScores = new int[rowCount];
-            int[] rowBestIndices = Enumerable.Repeat(-1, rowCount).ToArray();
-
-            int[] columnBestScores = new int[columnCount];
-            int[] columnSecondBestScores = new int[columnCount];
-            int[] columnBestIndices = Enumerable.Repeat(-1, columnCount).ToArray();
-
-            for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-                int rowOffset = rowIndex * columnCount;
-                for (int columnIndex = 0; columnIndex < columnCount; columnIndex++) {
-                    int score = votingMatrix[rowOffset + columnIndex];
-
-                    if (score > rowBestScores[rowIndex]) {
-                        rowSecondBestScores[rowIndex] = rowBestScores[rowIndex];
-                        rowBestScores[rowIndex] = score;
-                        rowBestIndices[rowIndex] = columnIndex;
-                    } else if (score > rowSecondBestScores[rowIndex]) {
-                        rowSecondBestScores[rowIndex] = score;
-                    }
-
-                    if (score > columnBestScores[columnIndex]) {
-                        columnSecondBestScores[columnIndex] = columnBestScores[columnIndex];
-                        columnBestScores[columnIndex] = score;
-                        columnBestIndices[columnIndex] = rowIndex;
-                    } else if (score > columnSecondBestScores[columnIndex]) {
-                        columnSecondBestScores[columnIndex] = score;
-                    }
-                }
-            }
-
-            int bestVoteScore = rowBestScores.Length == 0 ? 0 : rowBestScores.Max();
+            List<Match> matches = FindReciprocalMatches(votingMatrix, rowCount, columnCount, out int bestVoteScore);
             int minimumVotes = Math.Max(2, bestVoteScore / 8);
-
-            for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-                int columnIndex = rowBestIndices[rowIndex];
-                if (columnIndex < 0 || rowBestScores[rowIndex] < minimumVotes) {
-                    continue;
-                }
-
-                if (columnBestIndices[columnIndex] != rowIndex) {
-                    continue;
-                }
-
-                if (!IsDistinctiveMatch(rowBestScores[rowIndex], rowSecondBestScores[rowIndex])
-                    || !IsDistinctiveMatch(columnBestScores[columnIndex], columnSecondBestScores[columnIndex])) {
-                    continue;
-                }
-
-                matches.Add(new Match { Index1 = rowIndex, Index2 = columnIndex, Votes = rowBestScores[rowIndex] });
-            }
-
+            matches.RemoveAll(match => match.Votes < minimumVotes);
             if (matches.Count < 8) {
                 AppendGreedyMatches(matches, votingMatrix, rowCount, columnCount, minimumVotes);
             }
@@ -1694,11 +1644,13 @@ namespace NINA.Plugin.Livestack.Image {
             }
             DenseMatrix design = DenseMatrix.Create(count, 3, (i, j) => j == 0 ? (sourcePoints[i, 0] - meanX) / scale : j == 1 ? (sourcePoints[i, 1] - meanY) / scale : 1);
             DenseMatrix target = DenseMatrix.Create(count, 2, (i, j) => targetPoints[i, j] - (j == 0 ? meanU : meanV));
-            var decomposition = design.Svd();
+            // Direct SVD is cheaper for small seed fits; thin QR avoids the large square U workspace.
+            var qr = count > 20 ? design.QR(QRMethod.Thin) : null;
+            var decomposition = qr == null ? design.Svd() : qr.R.Svd();
             if (decomposition.S[2] <= decomposition.S[0] * 1e-6) {
                 throw new InvalidOperationException("Nearly collinear affine correspondences.");
             }
-            var solution = decomposition.Solve(target);
+            var solution = decomposition.Solve(qr == null ? target : qr.Q.TransposeThisAndMultiply(target));
             double a = solution[0, 0] / scale, b = solution[1, 0] / scale;
             double c = solution[0, 1] / scale, d = solution[1, 1] / scale;
             return new double[,] {
@@ -1906,13 +1858,20 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="voteThreshold">Scale factor for the minimum vote threshold.</param>
         /// <returns>Distinctive matches sorted by vote strength.</returns>
         private List<Match> ComputeMatchList(int[] votingMatrix, int rowCount, int columnCount, double voteThreshold) {
-            List<Match> matchList = new List<Match>();
-
             int matrixSize = Math.Min(rowCount, columnCount);
-
             double threshold = (matrixSize - 1) * (matrixSize - 2) / voteThreshold;
             int minimumVotes = (int)Math.Round(Math.Max(4.0, threshold));
+            List<Match> matches = FindReciprocalMatches(votingMatrix, rowCount, columnCount, out _);
+            matches.RemoveAll(match => match.Votes < minimumVotes);
+            if (matches.Count < 3) {
+                AppendGreedyMatches(matches, votingMatrix, rowCount, columnCount, Math.Max(4, (int)Math.Floor(minimumVotes * 0.75)));
+            }
 
+            SortMatchArray(ref matches);
+            return matches;
+        }
+
+        private static List<Match> FindReciprocalMatches(int[] votingMatrix, int rowCount, int columnCount, out int bestVoteScore) {
             int[] rowBestScores = new int[rowCount];
             int[] rowSecondBestScores = new int[rowCount];
             int[] rowBestIndices = Enumerable.Repeat(-1, rowCount).ToArray();
@@ -1944,39 +1903,20 @@ namespace NINA.Plugin.Livestack.Image {
                 }
             }
 
+            bestVoteScore = rowBestScores.Length == 0 ? 0 : rowBestScores.Max();
+            List<Match> matches = new();
             for (int rowIndex = 0; rowIndex < rowCount; rowIndex++) {
                 int columnIndex = rowBestIndices[rowIndex];
-                if (columnIndex < 0) {
+                if (columnIndex < 0 || columnBestIndices[columnIndex] != rowIndex) {
                     continue;
                 }
-
                 int bestScore = rowBestScores[rowIndex];
-                if (bestScore < minimumVotes) {
-                    continue;
+                if (IsDistinctiveMatch(bestScore, rowSecondBestScores[rowIndex])
+                    && IsDistinctiveMatch(bestScore, columnSecondBestScores[columnIndex])) {
+                    matches.Add(new Match { Index1 = rowIndex, Index2 = columnIndex, Votes = bestScore });
                 }
-
-                if (columnBestIndices[columnIndex] != rowIndex) {
-                    continue;
-                }
-
-                if (!IsDistinctiveMatch(bestScore, rowSecondBestScores[rowIndex])) {
-                    continue;
-                }
-
-                if (!IsDistinctiveMatch(bestScore, columnSecondBestScores[columnIndex])) {
-                    continue;
-                }
-
-                matchList.Add(new Match { Index1 = rowIndex, Index2 = columnIndex, Votes = bestScore });
             }
-
-            if (matchList.Count < 3) {
-                AppendGreedyMatches(matchList, votingMatrix, rowCount, columnCount, Math.Max(4, (int)Math.Floor(minimumVotes * 0.75)));
-            }
-
-            SortMatchArray(ref matchList);
-
-            return matchList;
+            return matches;
         }
 
         private void SortMatchArray(ref List<Match> m) {

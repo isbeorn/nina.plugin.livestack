@@ -14,7 +14,7 @@ namespace NINA.Plugin.Livestack.Image {
 
         /// <summary>
         /// Proposes matches, prefers a similarity fit and validates every final model against
-        /// independent stars across the frame. A rejected result must never be accumulated.
+        /// unique correspondences across the frame. A rejected result must never be accumulated.
         /// </summary>
         public AlignmentResult ComputeAlignment(List<Point> stars, List<Point> referenceStars, int width, int height, CancellationToken token = default) {
             token.ThrowIfCancellationRequested();
@@ -173,7 +173,7 @@ namespace NINA.Plugin.Livestack.Image {
             if (!double.IsFinite(rms) || rms > MaximumAlignmentRms || overlap < AlignmentGeometry.MinimumOverlap) {
                 return AlignmentResult.Rejected(FormattableString.Invariant($"Poor final fit or insufficient overlap: RMS={rms:F3}px; Overlap={overlap:P1}."));
             }
-            if (search.FixedReference && !search.HasIndependentSupport(model, pairs, width, height)) {
+            if (search.FixedReference && !search.PassesLocalChanceGate(model, pairs, width, height)) {
                 return AlignmentResult.Rejected("Final matches are not sufficiently distinct from local chance associations.");
             }
             return AlignmentResult.Accepted(model, pairs.Count, pairs.Count / (double)search.Denominator, rms, overlap, affine);

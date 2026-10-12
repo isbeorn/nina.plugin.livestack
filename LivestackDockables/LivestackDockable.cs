@@ -131,12 +131,13 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 imageSaveMediator.BeforeFinalizeImageSaved += receive;
                 _ = messageBroker.Publish(new LiveStackStatusBroadcast(LiveStackStatus.Running, correlation));
                 applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "Waiting for first frame" });
-                await session.Completion;
+                // N.I.N.A. blocks the WPF dispatcher while awaiting plugin teardown.
+                await session.Completion.ConfigureAwait(false);
             } finally {
                 imageSaveMediator.BeforeFinalizeImageSaved -= receive;
-                await session.DisposeAsync();
+                await session.DisposeAsync().ConfigureAwait(false);
                 try { if (Directory.Exists(temporaryDirectory)) Directory.Delete(temporaryDirectory, true); } catch (Exception ex) { Logger.Error(ex); }
-                await ReleaseCalibrationAsync();
+                await ReleaseCalibrationAsync().ConfigureAwait(false);
                 activeSession = null;
                 NotifyQueueEntriesChanged();
                 applicationStatusMediator.StatusUpdate(new ApplicationStatus() { Source = "Live Stack", Status = "" });
@@ -149,8 +150,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         public async Task StopAsync() {
             Task running = StartLiveStackCommand.ExecutionTask;
             StartLiveStackCommand.Cancel();
-            if (running != null) await running;
-            await ReleaseCalibrationAsync();
+            if (running != null) await running.ConfigureAwait(false);
+            await ReleaseCalibrationAsync().ConfigureAwait(false);
         }
 
         [RelayCommand]
@@ -349,26 +350,23 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
                 return false;
             }
 
-            // Solve once in red. The validated matrix also handles a meridian flip directly.
-            AlignmentResult alignment = redTab.AlignAndAdd(channels.Red, imageProperties, stars, true, token);
+            bool newGreen = greenTab == null;
+            bool newBlue = blueTab == null;
+            greenTab ??= new LiveStackTab(profileService, new LiveStackBag(redTab.Target, LiveStackBag.GREEN_OSC, imageProperties, item.MetaData, null));
+            blueTab ??= new LiveStackTab(profileService, new LiveStackBag(redTab.Target, LiveStackBag.BLUE_OSC, imageProperties, item.MetaData, null));
+
+            // Solve once in red and reserve all three channels before committing their pixels.
+            AlignmentResult alignment = redTab.AlignAndAddOsc(greenTab, blueTab, channels.Red, channels.Green, channels.Blue, imageProperties, stars, token);
             LogAlignment(alignment, item);
             if (!alignment.Success) {
                 return false;
             }
-            double[,] matrix = alignment.Matrix;
-            if (greenTab == null) {
-                greenTab = new LiveStackTab(profileService, new LiveStackBag(redTab.Target, LiveStackBag.GREEN_OSC, imageProperties, item.MetaData, redTab.ReferenceStars));
-                greenTab.ShareReferenceCatalog(redTab.ReferenceCatalog);
+            if (newGreen) {
                 Tabs.Add(greenTab);
             }
-            if (blueTab == null) {
-                blueTab = new LiveStackTab(profileService, new LiveStackBag(redTab.Target, LiveStackBag.BLUE_OSC, imageProperties, item.MetaData, redTab.ReferenceStars));
-                blueTab.ShareReferenceCatalog(redTab.ReferenceCatalog);
+            if (newBlue) {
                 Tabs.Add(blueTab);
             }
-            greenTab.AddTransformedImage(channels.Green, matrix, false);
-            blueTab.AddTransformedImage(channels.Blue, matrix, false);
-            redTab.CommitAlignment(alignment);
 
             await redTab.Refresh(token);
             await greenTab.Refresh(token);

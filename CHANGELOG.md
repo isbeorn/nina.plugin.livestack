@@ -2,9 +2,12 @@
 
 ## Unreleased
 
-- Alignment now checks selected reference stars against a broader set of detections, helping frames align when star selection changes between exposures.
-- Alignment first checks the previous accepted transform before performing geometric matching.
-- Added recorded-capture regression checks and production alignment benchmarks.
+- Fixed N.I.N.A. hanging when closing the application while live stacking is active.
+- Reduced memory use when aligning images with many stars.
+- Reduced unnecessary processing that could slow down existing stacks.
+- Better protection against partially updated color stacks when memory is low.
+- Improved alignment when different stars are detected between exposures.
+- Reduced alignment work when the image position has changed little since the previous exposure.
 
 ## 1.1.4.2
 

@@ -20,7 +20,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         }
 
         private async Task ReleaseCalibrationAsync() {
-            await frameProcessing.WaitAsync();
+            await frameProcessing.WaitAsync().ConfigureAwait(false);
             try { ResetCalibration(); } finally { frameProcessing.Release(); }
         }
 

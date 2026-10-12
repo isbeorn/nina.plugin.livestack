@@ -338,6 +338,13 @@ namespace nina.plugin.livestack.benchmark {
             string? expectedMatrix = Option(args, "--expected-matrix");
             int iterations = int.Parse(Option(args, "--iterations") ?? "3", CultureInfo.InvariantCulture);
             int samples = int.Parse(Option(args, "--samples") ?? "5", CultureInfo.InvariantCulture);
+            string measurement = Option(args, "--measurement") ?? "BatchMean";
+            if (measurement is not ("BatchMean" or "IndividualCall")) {
+                throw new ArgumentException("Measurement must be BatchMean or IndividualCall.");
+            }
+            if (measurement == "IndividualCall" && iterations != 1) {
+                throw new ArgumentException("IndividualCall requires --iterations 1.");
+            }
             if (iterations < 1 || samples < 1) {
                 throw new ArgumentOutOfRangeException(nameof(args), "Iterations and samples must be positive.");
             }
@@ -370,9 +377,11 @@ namespace nina.plugin.livestack.benchmark {
                         List<object> measurements = new();
                         AlignmentResult? diagnostic = null;
                         for (int sample = 0; sample < samples; sample++) {
-                            GC.Collect();
-                            GC.WaitForPendingFinalizers();
-                            GC.Collect();
+                            if (measurement == "BatchMean") {
+                                GC.Collect();
+                                GC.WaitForPendingFinalizers();
+                                GC.Collect();
+                            }
                             using Process process = Process.GetCurrentProcess();
                             TimeSpan cpuBefore = process.TotalProcessorTime;
                             long allocationBefore = GC.GetTotalAllocatedBytes(true);
@@ -387,7 +396,7 @@ namespace nina.plugin.livestack.benchmark {
                             double cpu = (process.TotalProcessorTime - cpuBefore).TotalMilliseconds / iterations;
                             workload.CheckLast(last, operation);
                             diagnostic = last as AlignmentResult;
-                            measurements.Add(new { WallMilliseconds = elapsed, CpuMilliseconds = cpu, AllocatedBytes = allocated });
+                            measurements.Add(new { Index = sample, Kind = measurement, WallMilliseconds = elapsed, CpuMilliseconds = cpu, AllocatedBytes = allocated });
                         }
                         (int matching, int supporting) = workload.CurrentCounts;
                         (int referenceMatching, int referenceSupporting) = workload.ReferenceCounts;
@@ -413,7 +422,7 @@ namespace nina.plugin.livestack.benchmark {
                 RunnerSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(Assembly.GetExecutingAssembly().Location))),
                 CatalogSha256 = catalogs == null ? null : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(catalogs))),
                 OracleSha256 = expectedMatrix == null ? null : Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(expectedMatrix))),
-                Iterations = iterations, Samples = samples, Results = rows
+                Measurement = measurement, Iterations = iterations, Samples = samples, Results = rows
             };
             string fullOutput = Path.GetFullPath(output);
             Directory.CreateDirectory(Path.GetDirectoryName(fullOutput)!);

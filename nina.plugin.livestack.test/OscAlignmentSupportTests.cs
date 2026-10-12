@@ -69,8 +69,9 @@ namespace nina.plugin.livestack.test {
             }
         }
 
-        [Test]
-        public async Task PredictionCommitsOnlyAfterEveryOscChannelHasAccumulated() {
+        [TestCase(false)]
+        [TestCase(true)]
+        public async Task LaterChannelOverflowPreservesEveryChannelAndPrediction(bool blueFails) {
             SynchronizationContext? previous = SynchronizationContext.Current;
             try {
                 SynchronizationContext.SetSynchronizationContext(null);
@@ -84,13 +85,20 @@ namespace nina.plugin.livestack.test {
                 host.Dockable.Tabs.Add(red);
                 Assert.That(await Stack(host, red, analysis), Is.True);
                 double[,] committed = Prediction(redBag)!;
-                LiveStackTab green = host.Dockable.Tabs.OfType<LiveStackTab>().Single(tab => tab.Filter == LiveStackBag.GREEN_OSC);
-                LiveStackBag greenBag = (LiveStackBag)typeof(LiveStackTab).GetField("bag", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(green)!;
-                typeof(LiveStackBag).GetField("<ImageCount>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(greenBag, int.MaxValue);
+                LiveStackBag[] bags = host.Dockable.Tabs.OfType<LiveStackTab>()
+                    .Select(tab => (LiveStackBag)typeof(LiveStackTab).GetField("bag", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(tab)!).ToArray();
+                LiveStackBag failing = bags.Single(bag => bag.Filter == (blueFails ? LiveStackBag.BLUE_OSC : LiveStackBag.GREEN_OSC));
+                typeof(LiveStackBag).GetField("<ImageCount>k__BackingField", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(failing, int.MaxValue);
+                int[] counts = bags.Select(bag => bag.ImageCount).ToArray();
+                float[][] pixels = bags.Select(bag => (float[])bag.Stack.Clone()).ToArray();
                 analysis = Analysis(AlignmentSafetyTests.Project(field, AlignmentSafetyTests.Matrix(tx: 9, ty: -7)));
 
                 Assert.ThrowsAsync<InvalidOperationException>(async () => await Stack(host, red, analysis));
                 Assert.That(Prediction(redBag), Is.EqualTo(committed), "An accepted red solution is not committed as a hint when another channel cannot accumulate.");
+                Assert.That(bags.Select(bag => bag.ImageCount), Is.EqualTo(counts));
+                for (int i = 0; i < bags.Length; i++) {
+                    Assert.That(bags[i].Stack, Is.EqualTo(pixels[i]));
+                }
             } finally {
                 SynchronizationContext.SetSynchronizationContext(previous);
             }
@@ -98,6 +106,64 @@ namespace nina.plugin.livestack.test {
 
         private static double[,]? Prediction(LiveStackBag bag) {
             return (double[,]?)typeof(LiveStackBag).GetField("lastCommittedMatrix", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(bag);
+        }
+
+        [TestCase(false)]
+        [TestCase(true)]
+        public void MalformedLaterChannelLeavesAllFirstReferencesUnpublished(bool blueFails) {
+            ImageProperties properties = new(1000, 1000, 16, true, 100, 10);
+            List<Point> field = AlignmentSafetyTests.CreateCatalog(40, 1447);
+            AlignmentStarCatalog stars = new(field, field);
+            LiveStackBag red = new("target", LiveStackBag.RED_OSC, properties, new ImageMetaData(), null);
+            LiveStackBag green = new("target", LiveStackBag.GREEN_OSC, properties, new ImageMetaData(), null);
+            LiveStackBag blue = new("target", LiveStackBag.BLUE_OSC, properties, new ImageMetaData(), null);
+            ushort[] valid = new ushort[1000000];
+            AlignmentResult result = red.AlignAndAddOsc(green, blue, valid, blueFails ? valid : new ushort[1], blueFails ? new ushort[1] : valid,
+                properties, stars, default);
+            Assert.That(result.Success, Is.False);
+            foreach (LiveStackBag bag in new[] { red, green, blue }) {
+                Assert.That(bag.Stack, Is.Null);
+                Assert.That(bag.ReferenceImageStars, Is.Null);
+                Assert.That(bag.ImageCount, Is.Zero);
+                Assert.That(Prediction(bag), Is.Null);
+            }
+        }
+
+        [TestCase(255)]
+        [TestCase(65535)]
+        public async Task AllOscChannelsPromoteCountsAndAccumulateTheNextFrame(int priorCount) {
+            SynchronizationContext? previous = SynchronizationContext.Current;
+            try {
+                SynchronizationContext.SetSynchronizationContext(null);
+                await using CaptureTestContext host = new();
+                StarDetectionAnalysis analysis = Analysis(AlignmentSafetyTests.CreateCatalog(40, 1449));
+                host.StarDetection.Setup(detector => detector.CreateAnalysis()).Returns(() => analysis);
+                ImageProperties properties = new(1000, 1000, 16, true, 100, 10);
+                LiveStackBag redBag = new("target", LiveStackBag.RED_OSC, properties, new ImageMetaData(), null);
+                LiveStackTab red = new(host.Profile.Object, redBag);
+                host.Dockable.Tabs.Add(red);
+                Assert.That(await Stack(host, red, analysis), Is.True);
+                LiveStackBag[] bags = host.Dockable.Tabs.OfType<LiveStackTab>()
+                    .Select(tab => (LiveStackBag)typeof(LiveStackTab).GetField("bag", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(tab)!).ToArray();
+                FieldInfo countsField = typeof(LiveStackBag).GetField("contributionCounts", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                foreach (LiveStackBag bag in bags) {
+                    Array.Fill(bag.Stack, 0.2f);
+                    typeof(LiveStackBag).GetProperty(nameof(LiveStackBag.ImageCount))!.SetValue(bag, priorCount);
+                    Array counts = priorCount == 255 ? Enumerable.Repeat((byte)255, 1000000).ToArray() : Enumerable.Repeat(ushort.MaxValue, 1000000).ToArray();
+                    countsField.SetValue(bag, counts);
+                }
+
+                Assert.That(await Stack(host, red, analysis), Is.True);
+                foreach (LiveStackBag bag in bags) {
+                    Array counts = (Array)countsField.GetValue(bag)!;
+                    Assert.That(counts, Is.TypeOf(priorCount == 255 ? typeof(ushort[]) : typeof(uint[])));
+                    Assert.That(Convert.ToUInt32(counts.GetValue(500500)), Is.EqualTo(priorCount + 1));
+                    Assert.That(bag.ImageCount, Is.EqualTo(priorCount + 1));
+                    Assert.That(bag.Stack[500500], Is.EqualTo((float)(0.2f + (0.4 - 0.2f) / (priorCount + 1))).Within(1e-7));
+                }
+            } finally {
+                SynchronizationContext.SetSynchronizationContext(previous);
+            }
         }
 
         private static StarDetectionAnalysis Analysis(List<Point> stars) {

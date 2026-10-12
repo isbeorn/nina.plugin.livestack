@@ -146,3 +146,118 @@ prediction. Supply catalogs from a compatible capture setup; the checker does
 not enforce the full replay path's frame metadata compatibility policy. Check
 accepted matrices against an independent oracle before using their timing as
 performance evidence.
+
+## Follow-up comparison measurements
+
+`--compare-alignment` defaults to `--measurement BatchMean`. Each sample is a
+loop's elapsed time divided by its iteration count, with collection before the
+batch. Percentiles across those samples are percentiles of batch averages, not
+individual-call tail latency.
+
+Use `--measurement IndividualCall --iterations 1 --samples 30` to record each
+call separately. This mode does not force collections between calls. Setup
+validates the expected result and warms each operation; every measured result is
+checked outside its timed interval. Process CPU measurements can remain below
+clock resolution for short calls. Report wall latency and allocations separately.
+Neither mode includes detector work or pixel resampling.
+
+`Verification/Compare-AlignmentVersions.ps1` runs identical isolated .NET 8
+runners in alternating baseline/candidate process order. It writes each raw
+result and a summary paired by round, scenario, mode and operation. It checks
+runner hashes and rejects unverified rows. Pairing process rounds does not imply
+that individual sequential calls are simultaneous paired observations. Use
+several rounds on an idle host, include recovery workloads and report the small
+sample size with any p95 estimate.
+
+```powershell
+./nina.plugin.livestack.benchmark/Verification/Compare-AlignmentVersions.ps1 -Baseline C:/isolated/baseline/nina.plugin.livestack.benchmark.exe -Candidate C:/isolated/candidate/nina.plugin.livestack.benchmark.exe -OutputDirectory obj/alignment-followup/paired -Scenario Typical300 -Rounds 3 -Samples 30
+```
+
+Archive status stages are coarse intervals between UI status updates. `Load`
+includes preparation/detection and `Aligning frame` includes catalog preparation
+and accumulation. OSC's red alignment stage also includes detection. These labels
+are not direct measurements of disk I/O or pure solver time. Memory peaks are
+sampled process maxima; `ManagedHeapBytes` is an after-frame heap reading.
+
+## Proposal-route research
+
+`--compare-proposals` compares the existing production acquisition route with
+ordered triangles, spatial triangles and quads through the same production final
+verifier. Benchmark-only reflection selects the proposal methods and constructs
+the ordinary association search. No production option or acceptance rule changes.
+Prepared matching/support catalogs and dimensions are identical across routes.
+The production route disables prediction with an invalid matrix to compare
+acquisition. ProductionIdentity supplies an identity prediction and
+ProductionWrongPrediction supplies a 180-degree prediction with translations
+width + 300 and height - 200. These exercise the complete prediction/recovery policy;
+standalone proposal routes do not.
+Each route is initialized once outside timing before measurement. Cold means a
+descriptor-cache miss in an initialized process: quad cold runs clear its cache;
+warm runs prime the route again first.
+The timing includes the association index, proposal and verification, excluding
+catalog preparation, detection and pixels.
+
+```powershell
+dotnet run --project nina.plugin.livestack.benchmark -c Release --no-build -- --compare-proposals --scenario Typical300 --repetitions 3 --budget-ms 1000 --output obj/alignment-followup/proposals-synthetic.json
+```
+
+Synthetic cases have known transform truth. `--both-directions` adds reversed
+cases with inverse truth matrices. Archive comparisons accept
+`--catalogs` with semicolon-separated JSONL/JSONL.gz paths and `--pairs` with a
+JSON array of `{ "Name", "Reference", "Current", "ExpectedAcceptance", "ExpectedMatrix" }`.
+Reference/current values must match the exported catalog `File` exactly. The
+optional matrix contains nine row-major values. Leave expected acceptance and
+matrix absent when independent truth is unavailable: an accepted same-target
+pair is then `Unadjudicated`, not a correct success. Declare unrelated pairs as
+false only after verifying their scene/metadata. Freeze pairs and parameters
+before viewing final evaluation outcomes.
+
+The common wall deadline is cooperative. Uninterruptible work may overrun; the
+report records actual elapsed time, cancellation and whether the deadline and
+allocation cap were met. An over-budget result is not an in-budget success.
+This measures the actual existing routes under common resource ceilings rather
+than pretending that they generate equal numbers of hypotheses. Their internal
+work caps remain different. It does not establish whole-policy false-acceptance
+calibration. No individual route is promoted to production by this harness.
+The benchmark-only LocalTriangles alternative uses the same at-most-72 spatial
+points as spatial triangles. Each anchor and pairs among its four nearest
+neighbors produce at most 432 triangles before deduplication. Opposite side
+lengths canonicalize vertices; two side/longest ratios select at most three
+descriptor neighbors within 0.02. Longest sides below 12 pixels and shortest/longest
+ratios below 0.05 are excluded. Weighted votes select unique pairs deterministically
+then the existing robust estimator and final verifier decide acceptance. These
+parameters are frozen experimental choices, not new production settings.
+
+## Paired complete-pipeline verification
+
+`Verification/Compare-PipelineVersions.ps1` runs a fixed twelve-frame mono
+workload twice per process, with eight paired fresh processes per detector.
+Baseline/candidate order alternates between blocks. The first sequence records
+startup and transition behavior; analyze the second sequence separately without
+assuming that the runtime has reached steady state. File reads before each
+process prepare the storage cache consistently.
+
+Pass identical benchmark runners with separate plugin versions, their expected
+plugin SHA-256 hashes, a twelve-path input list, a frozen protocol document and
+a new output directory. The controller checks runner/runtime configuration
+identity, records input and Hocus Focus library hashes and preserves raw outputs.
+It uses four logical processors, affinity mask 85 and an 8 GiB managed-heap cap.
+It never deploys a plugin or retries a failed measurement automatically.
+
+```powershell
+./nina.plugin.livestack.benchmark/Verification/Compare-PipelineVersions.ps1 `
+    -Baseline C:/isolated/baseline/nina.plugin.livestack.benchmark.exe `
+    -Candidate C:/isolated/candidate/nina.plugin.livestack.benchmark.exe `
+    -BaselinePluginSha256 $baselineHash -CandidatePluginSha256 $candidateHash `
+    -InputList C:/verification/twelve-frames.txt `
+    -Protocol C:/verification/frozen-protocol.md `
+    -OutputDirectory obj/pipeline-comparison
+```
+
+Pair frames by sequence index and path because paths repeat. Verify decisions,
+transforms and complete endpoint pixels/counts before interpreting timings.
+Use paired processes as the independent samples, not individual frames. Declare
+estimators, margins and fixed sample counts before measuring. A confidence bound
+that crosses the declared margin is inconclusive even if its point estimate is
+favorable. The existing runner samples private memory every 20 ms during replay;
+its frame records do not establish a whole-process lifetime peak.

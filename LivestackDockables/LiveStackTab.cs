@@ -171,16 +171,9 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             return bag.AlignAndAdd(data, properties, stars, token);
         }
 
-        internal AlignmentResult AlignAndAdd(ushort[] data, ImageProperties properties, AlignmentStarCatalog stars, bool deferPrediction, CancellationToken token) {
-            return bag.AlignAndAdd(data, properties, stars, deferPrediction, token);
-        }
-
-        internal void CommitAlignment(AlignmentResult result) {
-            bag.CommitAlignment(result);
-        }
-
-        internal void ShareReferenceCatalog(AlignmentStarCatalog catalog) {
-            bag.ShareReferenceCatalog(catalog);
+        internal AlignmentResult AlignAndAddOsc(LiveStackTab green, LiveStackTab blue, ushort[] redPixels, ushort[] greenPixels, ushort[] bluePixels,
+                ImageProperties properties, AlignmentStarCatalog stars, CancellationToken token) {
+            return bag.AlignAndAddOsc(green.bag, blue.bag, redPixels, greenPixels, bluePixels, properties, stars, token);
         }
 
         public void AddTransformedImage(float[] data, double[,] affineMatrix, bool flippedImage) {

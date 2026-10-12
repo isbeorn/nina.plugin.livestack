@@ -43,7 +43,7 @@ namespace NINA.Plugin.Livestack.Image {
             public int Denominator => FixedReference ? Reference.Count : Math.Min(Reference.Count, Current.Count);
             public int Minimum { get; }
 
-            public bool HasIndependentSupport(double[,] model, List<(Point Ref, Point Src, int Votes)> pairs, int width, int height) {
+            public bool PassesLocalChanceGate(double[,] model, List<(Point Ref, Point Src, int Votes)> pairs, int width, int height) {
                 ReadOnlySpan<double> radiiSquared = [0.25, 1, 4];
                 Span<double> expected = stackalloc double[3];
                 Span<int> observed = stackalloc int[3];

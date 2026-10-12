@@ -14,6 +14,10 @@ public static class Program {
             Environment.ExitCode = CatalogAlignmentComparison.Run(args.Skip(1).ToArray());
             return;
         }
+        if (args.FirstOrDefault() == "--compare-proposals") {
+            Environment.ExitCode = ProposalComparison.Run(args.Skip(1).ToArray());
+            return;
+        }
         Console.WriteLine($"Vector.IsHardwareAccelerated = {Vector.IsHardwareAccelerated}");
         Console.WriteLine($"Vector<float>.Count = {Vector<float>.Count}");
         Console.WriteLine();
