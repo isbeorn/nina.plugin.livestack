@@ -148,6 +148,12 @@ namespace nina.plugin.livestack.test {
             Assert.That(result[0], Is.EqualTo(exposure == 60 ? 0.28f : 0.3f).Within(1e-6));
         }
 
+        private void Register(CalibrationReference manager, bool omitBias, int width = Width, int height = Height) {
+            if (!omitBias) manager.RegisterBiasMaster(Meta("bias", CalibrationFrameType.BIAS, width, height));
+            manager.RegisterDarkMaster(Meta("dark", CalibrationFrameType.DARK, width, height));
+            manager.RegisterFlatMaster(Meta("flat", CalibrationFrameType.FLAT, width, height));
+        }
+
         private void Register(ICalibrationManager manager, bool omitBias, int width = Width, int height = Height) {
             if (!omitBias) manager.RegisterBiasMaster(Meta("bias", CalibrationFrameType.BIAS, width, height));
             manager.RegisterDarkMaster(Meta("dark", CalibrationFrameType.DARK, width, height));

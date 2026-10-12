@@ -17,7 +17,10 @@ namespace nina.plugin.livestack.test {
             instruction.SequenceBlockInitialize();
             try {
                 for (int i = 0; i < 3; i++) await SendFlat(host, 0.4f);
-                Assert.ThrowsAsync<OperationCanceledException>(() => instruction.Execute(null!, new CancellationToken(true)));
+                try {
+                    await instruction.Execute(null!, new CancellationToken(true));
+                    Assert.Fail("Canceled execution must throw before publishing a master.");
+                } catch (OperationCanceledException) { }
                 Assert.That(LivestackMediator.CalibrationVM.SessionFlatLibrary, Is.Empty);
             } finally {
                 instruction.SequenceBlockTeardown();

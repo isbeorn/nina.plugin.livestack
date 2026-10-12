@@ -10,7 +10,7 @@ using System.Text;
 // This file is also linked into the benchmark project; it is not part of the plugin.
 namespace NINA.Plugin.Livestack.TestSupport {
 
-    internal sealed class CalibrationReference : ICalibrationManager {
+    internal sealed class CalibrationReference : IDisposable {
 
         internal class CalibrationMaster : IDisposable {
 

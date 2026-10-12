@@ -19,6 +19,8 @@ namespace nina.plugin.livestack.test {
         internal Mock<IProfileService> Profile { get; } = new() { DefaultValue = DefaultValue.Mock };
         internal Mock<IImageSaveMediator> ImageSave { get; } = new();
         internal Mock<IMessageBroker> Broker { get; } = new();
+        internal Mock<IImageDataFactory> Factory { get; } = new();
+        internal Mock<IStarDetection> StarDetection { get; } = new();
         internal Livestack Plugin { get; }
         internal LivestackDockable Dockable { get; }
         internal string DirectoryPath { get; } = Path.Combine(Path.GetTempPath(), "LivestackCapture-" + Guid.NewGuid().ToString("N"));
@@ -37,7 +39,16 @@ namespace nina.plugin.livestack.test {
                     if (Capture == null) Subscribed = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 });
             Broker.Setup(b => b.Publish(It.IsAny<IMessage>())).Returns(Task.CompletedTask);
-            IImageDataFactory factory = Mock.Of<IImageDataFactory>();
+            Profile.SetupGet(p => p.ActiveProfile.ImageSettings.AutoStretchFactor).Returns(0.2);
+            Profile.SetupGet(p => p.ActiveProfile.ImageSettings.BlackClipping).Returns(-2.8);
+            StarDetection.Setup(s => s.CreateAnalysis()).Returns(() => new StarDetectionAnalysis());
+            Factory.Setup(f => f.CreateBaseImageData(It.IsAny<IImageArray>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<ImageMetaData>()))
+                .Returns((IImageArray pixels, int width, int height, int bitDepth, bool bayered, ImageMetaData metadata) =>
+                    new BaseImageData(pixels, width, height, bitDepth, bayered, metadata, Profile.Object, StarDetection.Object, Mock.Of<IStarAnnotator>()));
+            Factory.Setup(f => f.CreateBaseImageData(It.IsAny<ushort[]>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<int>(), It.IsAny<bool>(), It.IsAny<ImageMetaData>()))
+                .Returns((ushort[] pixels, int width, int height, int bitDepth, bool bayered, ImageMetaData metadata) =>
+                    new BaseImageData(pixels, width, height, bitDepth, bayered, metadata, Profile.Object, StarDetection.Object, Mock.Of<IStarAnnotator>()));
+            IImageDataFactory factory = Factory.Object;
             IWindowServiceFactory windows = Mock.Of<IWindowServiceFactory>();
             Plugin = new Livestack(Profile.Object, factory, windows) { WorkingDirectory = DirectoryPath, HotpixelRemoval = false };
             Dockable = new(Profile.Object, Mock.Of<IApplicationStatusMediator>(), ImageSave.Object, factory, windows, Mock.Of<ICameraMediator>(), Broker.Object);
@@ -50,6 +61,7 @@ namespace nina.plugin.livestack.test {
             metadata.Target.Name = "target";
             metadata.FilterWheel.Filter = "L";
             image.SetupGet(i => i.MetaData).Returns(metadata);
+            image.SetupGet(i => i.Data).Returns(new ImageArray(Enumerable.Repeat((ushort)1000, 256).ToArray()));
             image.SetupGet(i => i.Properties).Returns(new ImageProperties(16, 16, 16, false, 100, 10));
             image.SetupGet(i => i.Statistics).Returns(new AsyncLazy<IImageStatistics>(() => Task.FromResult(Mock.Of<IImageStatistics>())));
             Mock<IStarDetectionAnalysis> analysis = new();

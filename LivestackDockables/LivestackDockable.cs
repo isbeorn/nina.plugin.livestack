@@ -110,7 +110,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private async Task StartLiveStack(CancellationToken token) {
             ObjectDisposedException.ThrowIf(disposed, this);
             Guid correlation = Guid.NewGuid();
-            string workingDirectory = LivestackMediator.Plugin.WorkingDirectory;
+            string temporaryDirectory = Path.GetFullPath(Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "temp", correlation.ToString("N")));
             await using FrameProcessingSession session = new(async (item, frameToken) => {
                 StatusUpdate("Received new frame", item);
                 try {
@@ -121,9 +121,9 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }, NotifyQueueEntriesChanged, token);
             Func<object, BeforeFinalizeImageSavedEventArgs, Task> receive = (sender, e) => {
                 IImageData image = e.Image.RawImageData;
-                return image.MetaData.Image.ImageType == "LIGHT" || image.MetaData.Image.ImageType == "SNAPSHOT"
-                    ? session.EnqueueAsync(frameToken => PrepareFrameAsync(image, e.Patterns, frameToken, workingDirectory))
-                    : Task.CompletedTask;
+                if (image.MetaData.Image.ImageType != "LIGHT" && image.MetaData.Image.ImageType != "SNAPSHOT") return Task.CompletedTask;
+                IList<ImagePattern> patterns = e.Patterns == null ? Array.Empty<ImagePattern>() : e.Patterns.Select(pattern => new ImagePattern(pattern.Key, pattern.Description, pattern.Category) { Value = pattern.Value }).ToList();
+                return session.EnqueueBackgroundAsync(frameToken => PrepareFrameAsync(image, patterns, frameToken, temporaryDirectory));
             };
             activeSession = session;
             try {
@@ -135,6 +135,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             } finally {
                 imageSaveMediator.BeforeFinalizeImageSaved -= receive;
                 await session.DisposeAsync();
+                try { if (Directory.Exists(temporaryDirectory)) Directory.Delete(temporaryDirectory, true); } catch (Exception ex) { Logger.Error(ex); }
                 await ReleaseCalibrationAsync();
                 activeSession = null;
                 NotifyQueueEntriesChanged();

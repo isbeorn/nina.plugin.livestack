@@ -12,6 +12,8 @@ using NINA.WPF.Base.Interfaces.Mediator;
 using System;
 using System.ComponentModel.Composition;
 using System.IO;
+using System.Linq;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -92,9 +94,12 @@ namespace NINA.Plugin.Livestack.Instructions {
             FlatStackSession current = new(LivestackMediator.CalibrationVM, workingDirectory, RetrieveTarget(Parent),
                 LivestackMediator.Plugin.SaveCalibratedFlats, previousWork, () => RaisePropertyChanged(nameof(QueueEntries)));
             session = current;
-            receive = (sender, e) => e.Image.RawImageData.MetaData.Image.ImageType == "FLAT"
-                ? current.EnqueueAsync(token => PrepareFlatAsync(e, workingDirectory, token))
-                : Task.CompletedTask;
+            receive = (sender, e) => {
+                IImageData image = e.Image.RawImageData;
+                if (image.MetaData.Image.ImageType != "FLAT") return Task.CompletedTask;
+                IList<ImagePattern> patterns = e.Patterns.Select(pattern => new ImagePattern(pattern.Key, pattern.Description, pattern.Category) { Value = pattern.Value }).ToList();
+                return current.EnqueueAsync(token => PrepareFlatAsync(image, patterns, workingDirectory, token));
+            };
             imageSaveMediator.BeforeFinalizeImageSaved += receive;
         }
 
@@ -118,12 +123,11 @@ namespace NINA.Plugin.Livestack.Instructions {
             catch (Exception ex) { Logger.Error(ex); }
         }
 
-        private async Task<LiveStackItem> PrepareFlatAsync(BeforeFinalizeImageSavedEventArgs e, string workingDirectory, CancellationToken token) {
-            IImageData image = e.Image.RawImageData;
+        private async Task<LiveStackItem> PrepareFlatAsync(IImageData image, IList<ImagePattern> patterns, string workingDirectory, CancellationToken token) {
             string pattern = Path.GetFileName(profileService.ActiveProfile.ImageFileSettings.GetFilePattern(image.MetaData.Image.ImageType));
             string path = await image.SaveToDisk(new NINA.Image.FileFormat.FileSaveInfo {
                 FilePath = Path.Combine(workingDirectory, "temp"), FilePattern = pattern, FileType = Core.Enum.FileTypeEnum.FITS
-            }, token, true, e.Patterns).ConfigureAwait(false);
+            }, token, true, patterns).ConfigureAwait(false);
             try {
                 return new LiveStackItem(path, image.MetaData.Target.Name, image.MetaData.FilterWheel.Filter,
                     image.MetaData.Image.ExposureTime, image.MetaData.Camera.Gain, image.MetaData.Camera.Offset,

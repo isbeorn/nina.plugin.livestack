@@ -1,5 +1,9 @@
 # Livestack
 
+## 1.1.4.2
+
+- Fixed delays when saving images during live stacking, especially with large camera frames.
+
 ## 1.1.4.1
 
 - Fixed dark master selection when gain or offset is set to "Ignore" so the exposure time must still match.

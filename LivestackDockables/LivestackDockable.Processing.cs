@@ -63,8 +63,9 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
         }
 
-        private async Task<LiveStackItem> PrepareFrameAsync(IImageData image, IList<ImagePattern> patterns, CancellationToken token, string workingDirectory = null) {
-            await image.Statistics.Task.WaitAsync(token);
+        private async Task<LiveStackItem> PrepareFrameAsync(IImageData image, IList<ImagePattern> patterns, CancellationToken token, string temporaryDirectory = null) {
+            token.ThrowIfCancellationRequested();
+            await image.Statistics.Task;
             token.ThrowIfCancellationRequested();
             IStarDetectionAnalysis analysis = image.StarDetectionAnalysis;
             if (NeedsStarDetection(analysis)) {
@@ -77,7 +78,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
             string pattern = Path.GetFileName(profileService.ActiveProfile.ImageFileSettings.GetFilePattern(image.MetaData.Image.ImageType));
             string path = await image.SaveToDisk(new FileSaveInfo {
-                FilePath = Path.Combine(workingDirectory ?? LivestackMediator.Plugin.WorkingDirectory, "temp"),
+                FilePath = temporaryDirectory ?? Path.Combine(LivestackMediator.Plugin.WorkingDirectory, "temp"),
                 FilePattern = pattern,
                 FileType = NINA.Core.Enum.FileTypeEnum.FITS
             }, token, true, patterns);
