@@ -1,6 +1,6 @@
 # Livestack
 
-## Unreleased
+## 1.1.5.0
 
 - Fixed N.I.N.A. hanging when closing the application while live stacking is active.
 - Reduced memory use when aligning images with many stars.
