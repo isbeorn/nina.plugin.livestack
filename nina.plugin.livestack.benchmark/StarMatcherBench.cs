@@ -13,13 +13,15 @@ namespace nina.plugin.livestack.benchmark {
         private List<DetectedStar> targetDetections = new List<DetectedStar>();
         private int width;
         private int height;
+        private double[,] expected = null!;
 
         [Params(
             "Sparse_20_1936x1096",
             "Typical_300_6248x4176",
             "DenseFullFrame_3000_9576x6388",
             "MeridianFlip_3000_9576x6388",
-            "MediumFormat_12000_11656x8750")]
+            "MediumFormat_12000_11656x8750",
+            "AboveSupportCap_20000_11656x8750")]
         public string Scenario { get; set; } = "Sparse_20_1936x1096";
 
         [GlobalSetup]
@@ -40,6 +42,7 @@ namespace nina.plugin.livestack.benchmark {
                     { -0.0105, 0.9991, 27.5 },
                     { 0.0, 0.0, 1.0 }
                 };
+            expected = transform;
 
             var targetStars = ApplyAffine(referenceStars, transform, scenario.Seed + 11, jitter: 0.22f);
             targetStars.AddRange(CreateRandomStarField(Math.Max(3, scenario.StarCount / 10), width, height, scenario.Seed + 97));
@@ -48,6 +51,10 @@ namespace nina.plugin.livestack.benchmark {
 
             referenceDetections = ToDetectedStars(referenceStars, width, height);
             targetDetections = ToDetectedStars(targetStars, width, height);
+            IImageTransformer transformer = ImageTransformer2.Instance;
+            AlignmentResult result = transformer.ComputeAlignment(transformer.GetStars(targetDetections, width, height),
+                transformer.GetStars(referenceDetections, width, height), width, height);
+            AlignmentBenchmarkCase.RequireExpected(result, expected, width, height, true);
         }
 
         [Benchmark]
@@ -55,7 +62,8 @@ namespace nina.plugin.livestack.benchmark {
             IImageTransformer transformer = ImageTransformer2.Instance;
             var referenceStars = transformer.GetStars(referenceDetections, width, height);
             var targetStars = transformer.GetStars(targetDetections, width, height);
-            var matrix = transformer.ComputeAffineTransformation(targetStars, referenceStars);
+            AlignmentResult result = transformer.ComputeAlignment(targetStars, referenceStars, width, height);
+            double[,] matrix = result.Matrix ?? throw new InvalidOperationException(result.RejectionReason);
             return matrix[0, 0] + matrix[0, 2] + matrix[1, 1] + matrix[1, 2];
         }
 
@@ -138,6 +146,7 @@ namespace nina.plugin.livestack.benchmark {
                     "DenseFullFrame_3000_9576x6388" => new StarFieldScenario(3000, 9576, 6388, 307),
                     "MeridianFlip_3000_9576x6388" => new StarFieldScenario(3000, 9576, 6388, 503, meridianFlip: true),
                     "MediumFormat_12000_11656x8750" => new StarFieldScenario(12000, 11656, 8750, 401),
+                    "AboveSupportCap_20000_11656x8750" => new StarFieldScenario(20000, 11656, 8750, 607),
                     _ => throw new ArgumentOutOfRangeException(nameof(value), value, null)
                 };
             }

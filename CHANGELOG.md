@@ -1,5 +1,11 @@
 # Livestack
 
+## Unreleased
+
+- Alignment now checks selected reference stars against a broader set of detections, helping frames align when star selection changes between exposures.
+- Alignment first checks the previous accepted transform before performing geometric matching.
+- Added recorded-capture regression checks and production alignment benchmarks.
+
 ## 1.1.4.2
 
 - Fixed delays when saving images during live stacking, especially with large camera frames.

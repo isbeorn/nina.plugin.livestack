@@ -292,7 +292,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         private async Task<bool> StackMono(ImageBufferLease theImageArray, LiveStackItem item, LiveStackTab tab, Guid correlation, CancellationToken token) {
             StatusUpdate("Aligning frame", item);
-            var stars = LivestackMediator.GetImageTransformer().GetStars(item.StarList, item.Width, item.Height);
+            AlignmentStarCatalog stars = LivestackMediator.GetImageTransformer().PrepareAlignmentStars(item.StarList, item.Width, item.Height);
             AlignmentResult alignment = tab.AlignAndAdd(theImageArray, GetFrameProperties(item), stars, token);
             theImageArray.Dispose();
             LogAlignment(alignment, item);
@@ -339,7 +339,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
 
             var redChannelStarList = redChannelData.StarDetectionAnalysis?.StarList;
-            var stars = LivestackMediator.GetImageTransformer().GetStars(redChannelStarList, item.Width, item.Height);
+            AlignmentStarCatalog stars = LivestackMediator.GetImageTransformer().PrepareAlignmentStars(redChannelStarList, item.Width, item.Height);
 
             var imageProperties = GetFrameProperties(item);
             var greenTab = Tabs.OfType<LiveStackTab>().FirstOrDefault(x => x.Filter == LiveStackBag.GREEN_OSC && x.Target == redTab.Target);
@@ -350,7 +350,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
 
             // Solve once in red. The validated matrix also handles a meridian flip directly.
-            AlignmentResult alignment = redTab.AlignAndAdd(channels.Red, imageProperties, stars, token);
+            AlignmentResult alignment = redTab.AlignAndAdd(channels.Red, imageProperties, stars, true, token);
             LogAlignment(alignment, item);
             if (!alignment.Success) {
                 return false;
@@ -358,14 +358,17 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             double[,] matrix = alignment.Matrix;
             if (greenTab == null) {
                 greenTab = new LiveStackTab(profileService, new LiveStackBag(redTab.Target, LiveStackBag.GREEN_OSC, imageProperties, item.MetaData, redTab.ReferenceStars));
+                greenTab.ShareReferenceCatalog(redTab.ReferenceCatalog);
                 Tabs.Add(greenTab);
             }
             if (blueTab == null) {
                 blueTab = new LiveStackTab(profileService, new LiveStackBag(redTab.Target, LiveStackBag.BLUE_OSC, imageProperties, item.MetaData, redTab.ReferenceStars));
+                blueTab.ShareReferenceCatalog(redTab.ReferenceCatalog);
                 Tabs.Add(blueTab);
             }
             greenTab.AddTransformedImage(channels.Green, matrix, false);
             blueTab.AddTransformedImage(channels.Blue, matrix, false);
+            redTab.CommitAlignment(alignment);
 
             await redTab.Refresh(token);
             await greenTab.Refresh(token);

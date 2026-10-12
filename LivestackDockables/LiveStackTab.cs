@@ -74,6 +74,8 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         public List<Accord.Point> ReferenceStars => bag.ReferenceImageStars;
 
+        public AlignmentStarCatalog ReferenceCatalog => bag.ReferenceCatalog;
+
         public float[] Stack => bag.Stack;
 
         public ImageProperties Properties => bag.Properties;
@@ -163,6 +165,22 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
 
         public AlignmentResult AlignAndAdd(ushort[] data, ImageProperties properties, List<Accord.Point> stars, CancellationToken token) {
             return bag.AlignAndAdd(data, properties, stars, token);
+        }
+
+        internal AlignmentResult AlignAndAdd(ImageBufferLease data, ImageProperties properties, AlignmentStarCatalog stars, CancellationToken token) {
+            return bag.AlignAndAdd(data, properties, stars, token);
+        }
+
+        internal AlignmentResult AlignAndAdd(ushort[] data, ImageProperties properties, AlignmentStarCatalog stars, bool deferPrediction, CancellationToken token) {
+            return bag.AlignAndAdd(data, properties, stars, deferPrediction, token);
+        }
+
+        internal void CommitAlignment(AlignmentResult result) {
+            bag.CommitAlignment(result);
+        }
+
+        internal void ShareReferenceCatalog(AlignmentStarCatalog catalog) {
+            bag.ShareReferenceCatalog(catalog);
         }
 
         public void AddTransformedImage(float[] data, double[,] affineMatrix, bool flippedImage) {

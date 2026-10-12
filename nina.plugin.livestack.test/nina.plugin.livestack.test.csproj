@@ -26,6 +26,9 @@
   <ItemGroup>
     <Using Include="NUnit.Framework" />
     <EmbeddedResource Include="TestData\RealCaptureCatalogs.jsonl" />
+    <EmbeddedResource Include="TestData\HocusFocusSh2126.jsonl.gz" />
+    <EmbeddedResource Include="TestData\M15SparseBuiltin.jsonl.gz" />
+    <Compile Include="..\nina.plugin.livestack.benchmark\ArchiveStarCatalog.cs" Link="TestData\ArchiveStarCatalog.cs" />
   </ItemGroup>
 
   <ItemGroup>

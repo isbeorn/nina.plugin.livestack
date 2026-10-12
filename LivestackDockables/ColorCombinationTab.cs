@@ -134,11 +134,11 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
         private readonly Dictionary<LiveStackTab, ChannelAlignment> channelAlignments = new();
 
         // At most two small star catalogs and matrices. Resampled image buffers are never cached.
-        private sealed record ChannelAlignment(int Width, int Height, Accord.Point[] Reference, Accord.Point[] Stars, double[,] Matrix) {
+        private sealed record ChannelAlignment(int Width, int Height, AlignmentStarCatalog Reference, AlignmentStarCatalog Stars, double[,] Matrix) {
             internal bool Matches(LiveStackTab reference, LiveStackTab target) {
                 return Width == reference.Properties.Width && Height == reference.Properties.Height
                     && reference.ReferenceStars != null && target.ReferenceStars != null
-                    && Reference.SequenceEqual(reference.ReferenceStars) && Stars.SequenceEqual(target.ReferenceStars);
+                    && ReferenceEquals(Reference, reference.ReferenceCatalog) && ReferenceEquals(Stars, target.ReferenceCatalog);
             }
         }
 
@@ -216,14 +216,14 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             }
             if (!channelAlignments.TryGetValue(target, out ChannelAlignment plan) || !plan.Matches(reference, target)) {
                 channelAlignments.Remove(target);
-                AlignmentResult alignment = LivestackMediator.GetImageTransformer().ComputeAlignment(target.ReferenceStars, reference.ReferenceStars, reference.Properties.Width, reference.Properties.Height, token);
+                AlignmentResult alignment = LivestackMediator.GetImageTransformer().ComputeAlignment(target.ReferenceCatalog, reference.ReferenceCatalog, reference.Properties.Width, reference.Properties.Height, token: token);
                 if (!alignment.Success) {
                     Logger.Warning($"Live Stack color combination skipped: {alignment}");
                     return null;
                 }
                 token.ThrowIfCancellationRequested();
                 plan = new ChannelAlignment(reference.Properties.Width, reference.Properties.Height,
-                    reference.ReferenceStars.ToArray(), target.ReferenceStars.ToArray(), alignment.Matrix);
+                    reference.ReferenceCatalog, target.ReferenceCatalog, alignment.Matrix);
                 channelAlignments.Add(target, plan);
                 Logger.Info($"Live Stack color combination alignment: {alignment}");
             }

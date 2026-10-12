@@ -37,6 +37,33 @@ namespace NINA.Plugin.Livestack.Image {
         public ImageMetaData MetaData { get; }
         public List<Accord.Point> ReferenceImageStars { get; private set; }
         public float[] Stack { get; private set; }
+        private AlignmentStarCatalog referenceCatalog;
+        private double[,] lastCommittedMatrix;
+
+        public AlignmentStarCatalog ReferenceCatalog {
+            get {
+                if (ReferenceImageStars == null) {
+                    return null;
+                }
+                if (referenceCatalog == null || !referenceCatalog.MatchStars.SequenceEqual(ReferenceImageStars)) {
+                    referenceCatalog = new AlignmentStarCatalog(ReferenceImageStars, ReferenceImageStars);
+                    lastCommittedMatrix = null;
+                }
+                return referenceCatalog;
+            }
+        }
+
+        internal void ShareReferenceCatalog(AlignmentStarCatalog catalog) {
+            referenceCatalog = catalog;
+            ReferenceImageStars = catalog.MatchStars.ToList();
+            lastCommittedMatrix = null;
+        }
+
+        internal void CommitAlignment(AlignmentResult result) {
+            if (result.Success) {
+                lastCommittedMatrix = result.Matrix;
+            }
+        }
 
         public string Filter { get; }
 
@@ -96,6 +123,66 @@ namespace NINA.Plugin.Livestack.Image {
                 }
             }
             return result;
+        }
+
+        internal AlignmentResult AlignAndAdd(ImageBufferLease image, ImageProperties properties, AlignmentStarCatalog stars, CancellationToken token = default) {
+            float[] pixels = image.Buffer;
+            AlignmentResult result = AlignAndAdd(pixels, properties, stars, token);
+            if (result.Success && ReferenceEquals(Stack, pixels)) {
+                image.Detach();
+            }
+            return result;
+        }
+
+        public AlignmentResult AlignAndAdd(float[] image, ImageProperties properties, AlignmentStarCatalog stars, CancellationToken token = default) {
+            AlignmentResult result = PlanAlignment(image, properties, stars, token);
+            if (result.Success) {
+                token.ThrowIfCancellationRequested();
+                if (Stack == null) {
+                    ForcePushReference(properties, stars, image);
+                } else {
+                    AddTransformed(image, result.Matrix, false);
+                }
+                CommitAlignment(result);
+            }
+            return result;
+        }
+
+        public AlignmentResult AlignAndAdd(ushort[] image, ImageProperties properties, AlignmentStarCatalog stars, CancellationToken token = default) {
+            return AlignAndAdd(image, properties, stars, false, token);
+        }
+
+        internal AlignmentResult AlignAndAdd(ushort[] image, ImageProperties properties, AlignmentStarCatalog stars, bool deferPrediction, CancellationToken token) {
+            AlignmentResult result = PlanAlignment(image, properties, stars, token);
+            if (result.Success) {
+                token.ThrowIfCancellationRequested();
+                if (Stack == null) {
+                    float[] reference = new float[image.Length];
+                    for (int i = 0; i < image.Length; i++) {
+                        reference[i] = image[i] / (float)ushort.MaxValue;
+                    }
+                    ForcePushReference(properties, stars, reference);
+                } else {
+                    AddTransformed(image, result.Matrix, false);
+                }
+                if (!deferPrediction) {
+                    CommitAlignment(result);
+                }
+            }
+            return result;
+        }
+
+        private AlignmentResult PlanAlignment(Array image, ImageProperties properties, AlignmentStarCatalog stars, CancellationToken token) {
+            token.ThrowIfCancellationRequested();
+            if (properties == null || image == null || properties.Width <= 0 || properties.Height <= 0
+                || image.Length != (long)properties.Width * properties.Height) {
+                return AlignmentResult.Rejected("Incoming pixels do not match the frame dimensions.");
+            }
+            if (!IsCompatible(properties)) {
+                return AlignmentResult.Rejected("Frame dimensions, bit depth, sensor mode, gain or offset differ from the reference. Start a new stack for this capture setup.");
+            }
+            AlignmentStarCatalog reference = Stack == null ? stars : ReferenceCatalog;
+            return LivestackMediator.GetImageTransformer().ComputeAlignment(stars, reference, properties.Width, properties.Height, lastCommittedMatrix, token);
         }
 
         private AlignmentResult PlanAlignment(Array image, ImageProperties properties, List<Accord.Point> stars, CancellationToken token) {
@@ -202,12 +289,20 @@ namespace NINA.Plugin.Livestack.Image {
                 }
                 Properties = properties;
                 ReferenceImageStars = referenceStars;
+                referenceCatalog = null;
+                lastCommittedMatrix = null;
                 Stack = stack;
                 contributionCounts = counts;
                 ImageCount = 1;
             } finally {
                 Interlocked.Increment(ref revision);
             }
+        }
+
+        public void ForcePushReference(ImageProperties properties, AlignmentStarCatalog stars, float[] stack) {
+            ArgumentNullException.ThrowIfNull(stars);
+            ForcePushReference(properties, stars.MatchStars.ToList(), stack);
+            referenceCatalog = stars;
         }
 
         private string GetStackFilePath() {

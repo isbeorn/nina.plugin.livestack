@@ -54,13 +54,52 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="width">Frame width in pixels.</param>
         /// <param name="height">Frame height in pixels.</param>
         /// <returns>A stable list of star centroids to use for reference and target matching.</returns>
-        public List<Accord.Point> GetStars(List<DetectedStar> starList, int width, int height) {
+        public List<Point> GetStars(List<DetectedStar> starList, int width, int height) {
+            return SelectAlignmentStars(starList, width, height, out _);
+        }
+
+        public AlignmentStarCatalog PrepareAlignmentStars(List<DetectedStar> starList, int width, int height) {
+            List<Point> matches = SelectAlignmentStars(starList, width, height, out List<ScoredStar> candidates);
+            IEnumerable<Point> support = candidates.Select(star => star.Position).Distinct();
+            if (candidates.Count > AlignmentStarCatalog.MaximumSupportStars) {
+                HashSet<Point> selected = matches.ToHashSet();
+                List<ScoredStar>[] cells = new List<ScoredStar>[StableSelectionGridSize * StableSelectionGridSize];
+                foreach (ScoredStar star in candidates.OrderByDescending(star => star.Score).ThenBy(star => star.Position.X).ThenBy(star => star.Position.Y)) {
+                    if (!selected.Add(star.Position)) {
+                        continue;
+                    }
+                    int cell = GetStableSelectionCellIndex(star.Position, 0, 0, StableSelectionGridSize / (double)width, StableSelectionGridSize / (double)height);
+                    (cells[cell] ??= new List<ScoredStar>()).Add(star);
+                }
+                List<Point> limited = matches.Distinct().ToList();
+                for (int rank = 0; limited.Count < AlignmentStarCatalog.MaximumSupportStars; rank++) {
+                    bool added = false;
+                    foreach (List<ScoredStar> cell in cells) {
+                        if (cell != null && rank < cell.Count) {
+                            limited.Add(cell[rank].Position);
+                            added = true;
+                            if (limited.Count == AlignmentStarCatalog.MaximumSupportStars) {
+                                break;
+                            }
+                        }
+                    }
+                    if (!added) {
+                        break;
+                    }
+                }
+                support = limited;
+            }
+            return new AlignmentStarCatalog(matches, support);
+        }
+
+        private List<Point> SelectAlignmentStars(List<DetectedStar> starList, int width, int height, out List<ScoredStar> candidateStars) {
+            candidateStars = new List<ScoredStar>();
             if (starList == null || starList.Count == 0) {
                 return new List<Point>();
             }
 
             int rawStarCount = starList.Count;
-            var candidateStars = BuildScoredStars(starList, width, height, strictFiltering: true, out StarFilterDiagnostics strictDiagnostics);
+            candidateStars = BuildScoredStars(starList, width, height, strictFiltering: true, out StarFilterDiagnostics strictDiagnostics);
             int strictCandidateCount = candidateStars.Count;
             int looseCandidateCount = -1;
             StarFilterDiagnostics looseDiagnostics = default;
@@ -648,7 +687,7 @@ namespace NINA.Plugin.Livestack.Image {
         /// <param name="stars">Target-frame stars.</param>
         /// <param name="affineTransformation">The solved affine transform when matching succeeds.</param>
         /// <returns><c>true</c> when a quad-derived proposal was found; ComputeAlignment performs final acceptance.</returns>
-        private bool TryComputeQuadAffineTransformation(List<Point> referenceStars, List<Point> stars, out double[,] affineTransformation, CancellationToken token = default) {
+        private bool TryComputeQuadAffineTransformation(List<Point> referenceStars, List<Point> stars, out double[,] affineTransformation, CancellationToken token = default, AlignmentSearch support = null) {
             affineTransformation = null;
             List<Point> referenceCatalog;
             List<Quad> referenceQuads;
@@ -696,7 +735,7 @@ namespace NINA.Plugin.Livestack.Image {
                 }
             }
 
-            if (TryEstimateAffineFromQuadCandidates(candidateModels, referenceQuads, referenceCatalog, targetCatalog, out affineTransformation, token)) {
+            if (TryEstimateAffineFromQuadCandidates(candidateModels, referenceQuads, referenceCatalog, targetCatalog, out affineTransformation, token, support)) {
                 return true;
             }
 
@@ -1110,12 +1149,12 @@ namespace NINA.Plugin.Livestack.Image {
                 List<Quad> referenceQuads,
                 List<Point> referenceCatalog,
                 List<Point> targetCatalog,
-                out double[,] affineTransformation, CancellationToken token = default) {
+                out double[,] affineTransformation, CancellationToken token = default, AlignmentSearch support = null) {
             affineTransformation = null;
             double bestScore = double.NegativeInfinity;
             List<(Point Ref, Point Src, int Votes)> bestPairs = null;
             const double inlierThresholdPx = 4.0d;
-            var targetGrid = BuildTargetSpatialIndex(targetCatalog, inlierThresholdPx);
+            support ??= new AlignmentSearch(referenceCatalog, targetCatalog, false);
 
             foreach (var candidate in candidates) {
                 token.ThrowIfCancellationRequested();
@@ -1143,7 +1182,7 @@ namespace NINA.Plugin.Livestack.Image {
                     continue;
                 }
 
-                var inlierPairs = CollectProjectedInliers(model, referenceCatalog, targetCatalog, inlierThresholdPx, targetGrid);
+                var inlierPairs = support.Collect(model, inlierThresholdPx);
                 if (inlierPairs.Count < 8) {
                     continue;
                 }
@@ -1161,103 +1200,6 @@ namespace NINA.Plugin.Livestack.Image {
 
             affineTransformation = RefineAffineLeastSquares(bestPairs, Enumerable.Range(0, bestPairs.Count).ToList());
             return true;
-        }
-
-        /// <summary>
-        /// Projects reference stars through a model and collects nearest target stars within a threshold.
-        /// </summary>
-        /// <param name="model">Affine transform to validate.</param>
-        /// <param name="referenceCatalog">Reference stars to project.</param>
-        /// <param name="targetCatalog">Target stars to search.</param>
-        /// <param name="inlierThresholdPx">Maximum allowed projection error in pixels.</param>
-        /// <returns>Projected inlier pairs suitable for final least-squares refinement.</returns>
-        private List<(Point Ref, Point Src, int Votes)> CollectProjectedInliers(double[,] model, List<Point> referenceCatalog, List<Point> targetCatalog, double inlierThresholdPx) {
-            var targetGrid = BuildTargetSpatialIndex(targetCatalog, inlierThresholdPx);
-            return CollectProjectedInliers(model, referenceCatalog, targetCatalog, inlierThresholdPx, targetGrid);
-        }
-
-        /// <summary>
-        /// Projects reference stars through a model using a prebuilt target-star spatial index.
-        /// </summary>
-        /// <param name="model">Affine transform to validate.</param>
-        /// <param name="referenceCatalog">Reference stars to project.</param>
-        /// <param name="targetCatalog">Target stars to search.</param>
-        /// <param name="inlierThresholdPx">Maximum allowed projection error in pixels.</param>
-        /// <param name="targetGrid">Prebuilt target-star spatial index using <paramref name="inlierThresholdPx"/> as cell size.</param>
-        /// <returns>Projected inlier pairs suitable for final least-squares refinement.</returns>
-        private List<(Point Ref, Point Src, int Votes)> CollectProjectedInliers(
-                double[,] model,
-                List<Point> referenceCatalog,
-                List<Point> targetCatalog,
-                double inlierThresholdPx,
-                Dictionary<long, List<int>> targetGrid) {
-            double thresholdSquared = inlierThresholdPx * inlierThresholdPx;
-            int[] bestReference = Enumerable.Repeat(-1, targetCatalog.Count).ToArray();
-            double[] bestDistances = Enumerable.Repeat(thresholdSquared, targetCatalog.Count).ToArray();
-            for (int referenceIndex = 0; referenceIndex < referenceCatalog.Count; referenceIndex++) {
-                Point projected = ApplyAffine(referenceCatalog[referenceIndex], model);
-                if (!float.IsFinite(projected.X) || !float.IsFinite(projected.Y)) {
-                    continue;
-                }
-                int bestTarget = -1;
-                double nearestDistance = thresholdSquared;
-                int cellX = (int)Math.Floor(projected.X / inlierThresholdPx);
-                int cellY = (int)Math.Floor(projected.Y / inlierThresholdPx);
-                for (int y = cellY - 1; y <= cellY + 1; y++) {
-                    for (int x = cellX - 1; x <= cellX + 1; x++) {
-                        if (!targetGrid.TryGetValue(PackSpatialGridKey(x, y), out List<int> indices)) {
-                            continue;
-                        }
-                        foreach (int targetIndex in indices) {
-                            double distance = DistanceSquared(projected, targetCatalog[targetIndex]);
-                            if (distance < nearestDistance) {
-                                nearestDistance = distance;
-                                bestTarget = targetIndex;
-                            }
-                        }
-                    }
-                }
-                // A target contributes once, using only its closest proposed reference star.
-                if (bestTarget >= 0 && nearestDistance < bestDistances[bestTarget]) {
-                    bestReference[bestTarget] = referenceIndex;
-                    bestDistances[bestTarget] = nearestDistance;
-                }
-            }
-            List<(Point Ref, Point Src, int Votes)> pairs = new();
-            for (int i = 0; i < bestReference.Length; i++) {
-                if (bestReference[i] >= 0) {
-                    pairs.Add((referenceCatalog[bestReference[i]], targetCatalog[i], 1));
-                }
-            }
-            return pairs;
-        }
-
-        /// <summary>
-        /// Builds a grid index for target stars so projected-inlier checks are near-linear.
-        /// </summary>
-        /// <param name="targetCatalog">Target stars to index.</param>
-        /// <param name="cellSize">Grid cell size in pixels.</param>
-        /// <returns>A hash grid mapping cell keys to target star indices.</returns>
-        private static Dictionary<long, List<int>> BuildTargetSpatialIndex(List<Point> targetCatalog, double cellSize) {
-            var targetGrid = new Dictionary<long, List<int>>(targetCatalog.Count);
-            for (int targetIndex = 0; targetIndex < targetCatalog.Count; targetIndex++) {
-                int cellX = (int)Math.Floor(targetCatalog[targetIndex].X / cellSize);
-                int cellY = (int)Math.Floor(targetCatalog[targetIndex].Y / cellSize);
-                long key = PackSpatialGridKey(cellX, cellY);
-
-                if (!targetGrid.TryGetValue(key, out List<int> targetIndices)) {
-                    targetIndices = new List<int>(1);
-                    targetGrid[key] = targetIndices;
-                }
-
-                targetIndices.Add(targetIndex);
-            }
-
-            return targetGrid;
-        }
-
-        private static long PackSpatialGridKey(int cellX, int cellY) {
-            return ((long)cellX << 32) ^ (uint)cellY;
         }
 
         /// <summary>
@@ -1617,7 +1559,7 @@ namespace NINA.Plugin.Livestack.Image {
             };
         }
 
-        private Point ApplyAffine(Point p, double[,] m) {
+        private static Point ApplyAffine(Point p, double[,] m) {
             double x = m[0, 0] * p.X + m[0, 1] * p.Y + m[0, 2];
             double y = m[1, 0] * p.X + m[1, 1] * p.Y + m[1, 2];
             return new Point((float)x, (float)y);
