@@ -446,7 +446,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             ImageBufferLease frame = ImageBufferPool.Shared.Rent(AffineResampler.GetLength(item.Width, item.Height));
             try {
                 using CFitsioFITSReader reader = new(item.Path);
-                calibrationManager.ApplyLightFrameCalibrationInto(reader, frame.Buffer, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.Filter, item.IsBayered, token);
+                calibrationManager.ApplyLightFrameCalibrationInto(reader, frame.Buffer, item.Width, item.Height, item.ExposureTime, item.Gain, item.Offset, item.BinX, item.BinY, item.Filter, item.IsBayered, token);
                 return frame;
             } catch {
                 frame.Dispose();

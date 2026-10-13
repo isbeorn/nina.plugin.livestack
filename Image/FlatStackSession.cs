@@ -62,7 +62,7 @@ namespace NINA.Plugin.Livestack.Image {
             using ImageBufferLease pixels = ImageBufferPool.Shared.Rent(AffineResampler.GetLength(item.Width, item.Height));
             using (CFitsioFITSReader reader = new(item.Path)) {
                 calibration.ApplyFlatFrameCalibrationInto(reader, pixels.Buffer, item.Width, item.Height, item.ExposureTime,
-                    item.Gain, item.Offset, item.Filter, item.IsBayered, token);
+                    item.Gain, item.Offset, item.BinX, item.BinY, item.Filter, item.IsBayered, token);
             }
             double median = pixels.Buffer.Median();
             token.ThrowIfCancellationRequested();
@@ -131,10 +131,11 @@ namespace NINA.Plugin.Livestack.Image {
             string output = CoreUtil.GetUniqueFilePath(Path.Combine(folder, CoreUtil.ReplaceAllInvalidFilenameChars($"MASTER_FLAT_{target}_{filter}.fits")), "{0}_{1}");
             try {
                 CFitsioFITSExtendedWriter writer = new(output, stack, first.Width, first.Height);
-                try { writer.PopulateHeaderCards(first.RestoreMetaData()); }
+                var metaData = first.RestoreMetaData();
+                try { writer.PopulateHeaderCards(metaData); }
                 finally { writer.Close(); }
                 token.ThrowIfCancellationRequested();
-                addMaster(new CalibrationFrameMeta(CalibrationFrameType.FLAT, output, 0, 0, 0, filter, first.Width, first.Height, (float)stack.Mean()));
+                addMaster(new CalibrationFrameMeta(CalibrationFrameType.FLAT, output, 0, 0, metaData.Camera.BinX, metaData.Camera.BinY, 0, filter, first.Width, first.Height, (float)stack.Mean()));
             } catch {
                 File.Delete(output);
                 throw;

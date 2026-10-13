@@ -85,6 +85,7 @@ namespace NINA.Plugin.Livestack.LivestackDockables {
             try {
                 return new LiveStackItem(path, image.MetaData.Target.Name, image.MetaData.FilterWheel.Filter,
                     image.MetaData.Image.ExposureTime, image.MetaData.Camera.Gain, image.MetaData.Camera.Offset,
+                    image.MetaData.Camera.BinX, image.MetaData.Camera.BinY,
                     image.Properties.Width, image.Properties.Height, image.Properties.BitDepth,
                     image.Properties.IsBayered, analysis, image.MetaData);
             } catch {

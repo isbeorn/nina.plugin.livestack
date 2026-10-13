@@ -17,7 +17,7 @@ namespace NINA.Plugin.Livestack.Image {
 
             public CalibrationMaster(CalibrationFrameMeta meta, bool cacheRows) {
                 ArgumentNullException.ThrowIfNull(meta);
-                Meta = new CalibrationFrameMeta(meta.Type, meta.Path, meta.Gain, meta.Offset, meta.ExposureTime,
+                Meta = new CalibrationFrameMeta(meta.Type, meta.Path, meta.Gain, meta.Offset, meta.BinX, meta.BinY, meta.ExposureTime,
                     meta.Filter, meta.Width, meta.Height, meta.Mean);
                 FileInfo file = new(meta.Path);
                 fileLength = file.Length;
@@ -144,27 +144,31 @@ namespace NINA.Plugin.Livestack.Image {
             }
         }
 
-        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset) {
+        private static bool MatchesBinning(CalibrationFrameMeta x, int binX, int binY) {
+            return (x.BinX == binX && x.BinY == binY) || (x.BinX == -1 && x.BinY == -1);
+        }
+
+        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset, int binX, int binY) {
             CalibrationFrameMeta meta =
-                BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.Width == width && x.Height == height)
-                ?? BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height)
-                ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height)
-                ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
+                BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY))
+                ?? BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY))
+                ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY))
+                ?? BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
             return GetOrCreateMaster(meta, CalibrationFrameType.BIAS);
         }
 
-        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset) {
+        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset, int binX, int binY) {
             CalibrationFrameMeta meta =
-                DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
-                ?? DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
-                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height)
-                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
+                DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY))
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY))
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY))
+                ?? DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
             return GetOrCreateMaster(meta, CalibrationFrameType.DARK);
         }
 
-        private CalibrationMaster GetFlatMaster(int width, int height, string inFilter) {
+        private CalibrationMaster GetFlatMaster(int width, int height, int binX, int binY, string inFilter) {
             string filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
-            CalibrationFrameMeta meta = FlatLibrary.FirstOrDefault(x => x.Filter == filter && x.Width == width && x.Height == height);
+            CalibrationFrameMeta meta = FlatLibrary.FirstOrDefault(x => x.Filter == filter && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
             return GetOrCreateMaster(meta, CalibrationFrameType.FLAT);
         }
 
@@ -187,18 +191,20 @@ namespace NINA.Plugin.Livestack.Image {
             double exposureTime,
             int gain,
             int offset,
+            int binX,
+            int binY,
             string inFilter,
             bool isBayered) {
             float[] output = GC.AllocateUninitializedArray<float>(AffineResampler.GetLength(width, height));
-            ApplyLightFrameCalibrationInto(image, output, width, height, exposureTime, gain, offset, inFilter, isBayered);
+            ApplyLightFrameCalibrationInto(image, output, width, height, exposureTime, gain, offset, binX, binY, inFilter, isBayered);
             return output;
         }
 
-        public void ApplyLightFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token = default) {
+        public void ApplyLightFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, int binX, int binY, string inFilter, bool isBayered, CancellationToken token = default) {
             ValidateDestination(image, imageArray, width, height, token);
-            CalibrationMaster bias = LivestackMediator.Plugin.UseBiasForLights ? GetBiasMaster(width, height, gain, offset) : GetOrCreateMaster(null, CalibrationFrameType.BIAS);
-            CalibrationMaster dark = GetDarkMaster(width, height, exposureTime, gain, offset);
-            CalibrationMaster flat = GetFlatMaster(width, height, inFilter);
+            CalibrationMaster bias = LivestackMediator.Plugin.UseBiasForLights ? GetBiasMaster(width, height, gain, offset, binX, binY) : GetOrCreateMaster(null, CalibrationFrameType.BIAS);
+            CalibrationMaster dark = GetDarkMaster(width, height, exposureTime, gain, offset, binX, binY);
+            CalibrationMaster flat = GetFlatMaster(width, height, binX, binY, inFilter);
             CalibrateFrame(image, imageArray, width, height, bias, dark, flat, token);
         }
 
@@ -209,17 +215,19 @@ namespace NINA.Plugin.Livestack.Image {
             double exposureTime,
             int gain,
             int offset,
+            int binX,
+            int binY,
             string inFilter,
             bool isBayered) {
             float[] output = GC.AllocateUninitializedArray<float>(AffineResampler.GetLength(width, height));
-            ApplyFlatFrameCalibrationInto(image, output, width, height, exposureTime, gain, offset, inFilter, isBayered);
+            ApplyFlatFrameCalibrationInto(image, output, width, height, exposureTime, gain, offset, binX, binY, inFilter, isBayered);
             return output;
         }
 
-        public void ApplyFlatFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered, CancellationToken token = default) {
+        public void ApplyFlatFrameCalibrationInto(CFitsioFITSReader image, float[] imageArray, int width, int height, double exposureTime, int gain, int offset, int binX, int binY, string inFilter, bool isBayered, CancellationToken token = default) {
             ValidateDestination(image, imageArray, width, height, token);
-            CalibrationMaster bias = GetBiasMaster(width, height, gain, offset);
-            CalibrationMaster dark = bias == null ? GetDarkMaster(width, height, exposureTime, gain, offset) : GetOrCreateMaster(null, CalibrationFrameType.DARK);
+            CalibrationMaster bias = GetBiasMaster(width, height, gain, offset, binX, binY);
+            CalibrationMaster dark = bias == null ? GetDarkMaster(width, height, exposureTime, gain, offset, binX, binY) : GetOrCreateMaster(null, CalibrationFrameType.DARK);
             GetOrCreateMaster(null, CalibrationFrameType.FLAT);
             CalibrateFrame(image, imageArray, width, height, bias, dark, null, token);
         }

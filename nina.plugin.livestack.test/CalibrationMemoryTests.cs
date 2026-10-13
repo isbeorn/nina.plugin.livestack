@@ -46,15 +46,15 @@ namespace nina.plugin.livestack.test {
             Register(optimized, omitBias);
             using CFitsioFITSReader reader = new(Path.Combine(directory, "light.fits"));
             float[] expected = flat
-                ? baseline.ApplyFlatFrameCalibrationInPlace(reader, Width, Height, 60, 100, 10, "L", false)
-                : baseline.ApplyLightFrameCalibrationInPlace(reader, Width, Height, 60, 100, 10, "L", false);
+                ? baseline.ApplyFlatFrameCalibrationInPlace(reader, Width, Height, 60, 100, 10, -1, -1, "L", false)
+                : baseline.ApplyLightFrameCalibrationInPlace(reader, Width, Height, 60, 100, 10, -1, -1, "L", false);
             float[] actual = Enumerable.Repeat(float.NaN, Width * Height).ToArray();
             for (int pass = 0; pass < 2; pass++) {
                 Array.Fill(actual, float.NaN);
                 if (flat) {
-                    optimized.ApplyFlatFrameCalibrationInto(reader, actual, Width, Height, 60, 100, 10, "L", false);
+                    optimized.ApplyFlatFrameCalibrationInto(reader, actual, Width, Height, 60, 100, 10, -1, -1, "L", false);
                 } else {
-                    optimized.ApplyLightFrameCalibrationInto(reader, actual, Width, Height, 60, 100, 10, "L", false);
+                    optimized.ApplyLightFrameCalibrationInto(reader, actual, Width, Height, 60, 100, 10, -1, -1, "L", false);
                 }
                 FloatAssert.AreEqual(expected, actual);
             }
@@ -76,13 +76,13 @@ namespace nina.plugin.livestack.test {
             Register(optimized, false, width, height);
             using CFitsioFITSReader reader = new(Path.Combine(directory, "light.fits"));
             float[] expected = flat
-                ? baseline.ApplyFlatFrameCalibrationInPlace(reader, width, height, 60, 100, 10, "L", false)
-                : baseline.ApplyLightFrameCalibrationInPlace(reader, width, height, 60, 100, 10, "L", false);
+                ? baseline.ApplyFlatFrameCalibrationInPlace(reader, width, height, 60, 100, 10, -1, -1, "L", false)
+                : baseline.ApplyLightFrameCalibrationInPlace(reader, width, height, 60, 100, 10, -1, -1, "L", false);
             float[] actual = new float[width * height];
             if (flat) {
-                optimized.ApplyFlatFrameCalibrationInto(reader, actual, width, height, 60, 100, 10, "L", false);
+                optimized.ApplyFlatFrameCalibrationInto(reader, actual, width, height, 60, 100, 10, -1, -1, "L", false);
             } else {
-                optimized.ApplyLightFrameCalibrationInto(reader, actual, width, height, 60, 100, 10, "L", false);
+                optimized.ApplyLightFrameCalibrationInto(reader, actual, width, height, 60, 100, 10, -1, -1, "L", false);
             }
             FloatAssert.AreEqual(expected, actual);
         }
@@ -95,9 +95,9 @@ namespace nina.plugin.livestack.test {
             float[] pixels = Enumerable.Repeat(0.9f, Width * Height).ToArray();
             Action<int, int, CancellationToken> apply = (width, height, token) => {
                 if (flat) {
-                    manager.ApplyFlatFrameCalibrationInto(reader, pixels, width, height, 60, 100, 10, "L", false, token);
+                    manager.ApplyFlatFrameCalibrationInto(reader, pixels, width, height, 60, 100, 10, -1, -1, "L", false, token);
                 } else {
-                    manager.ApplyLightFrameCalibrationInto(reader, pixels, width, height, 60, 100, 10, "L", false, token);
+                    manager.ApplyLightFrameCalibrationInto(reader, pixels, width, height, 60, 100, 10, -1, -1, "L", false, token);
                 }
             };
             Assert.Throws<OperationCanceledException>(() => apply(Width, Height, new CancellationToken(true)));
@@ -117,7 +117,7 @@ namespace nina.plugin.livestack.test {
             void Apply() {
                 using CalibrationManagerSimd manager = new();
                 Register(manager, false);
-                manager.ApplyLightFrameCalibrationInto(reader, output, Width, Height, 60, 100, 10, "L", false);
+                manager.ApplyLightFrameCalibrationInto(reader, output, Width, Height, 60, 100, 10, -1, -1, "L", false);
             }
         }
 
@@ -143,8 +143,8 @@ namespace nina.plugin.livestack.test {
             manager.RegisterDarkMaster(dark);
             using CFitsioFITSReader reader = new(Path.Combine(directory, "light.fits"));
             float[] result = flat
-                ? manager.ApplyFlatFrameCalibrationInPlace(reader, Width, Height, exposure, 100, 10, "L", false)
-                : manager.ApplyLightFrameCalibrationInPlace(reader, Width, Height, exposure, 100, 10, "L", false);
+                ? manager.ApplyFlatFrameCalibrationInPlace(reader, Width, Height, exposure, 100, 10, -1, -1, "L", false)
+                : manager.ApplyLightFrameCalibrationInPlace(reader, Width, Height, exposure, 100, 10, -1, -1, "L", false);
             Assert.That(result[0], Is.EqualTo(exposure == 60 ? 0.28f : 0.3f).Within(1e-6));
         }
 
@@ -160,7 +160,7 @@ namespace nina.plugin.livestack.test {
             manager.RegisterFlatMaster(Meta("flat", CalibrationFrameType.FLAT, width, height));
         }
 
-        private CalibrationFrameMeta Meta(string name, CalibrationFrameType type, int width = Width, int height = Height) => new(type, Path.Combine(directory, name + ".fits"), 100, 10, 60, "L", width, height, 0.72f);
+        private CalibrationFrameMeta Meta(string name, CalibrationFrameType type, int width = Width, int height = Height) => new(type, Path.Combine(directory, name + ".fits"), 100, 10, -1, -1, 60, "L", width, height, 0.72f);
 
         private void Write(string name, Func<int, float> value, int width = Width, int height = Height) {
             CFitsioFITSExtendedWriter writer = new(Path.Combine(directory, name + ".fits"), Enumerable.Range(0, width * height).Select(value).ToArray(), width, height);

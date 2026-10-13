@@ -60,7 +60,7 @@ namespace nina.plugin.livestack.test {
                     factory.Object, windows, camera.Object, Mock.Of<IMessageBroker>());
                 Mock<IStarDetectionAnalysis> analysis = new();
                 analysis.SetupGet(a => a.StarList).Returns(new List<DetectedStar>());
-                LiveStackItem item = new("unused.fits", "target", "L", 60, 100, 10, width, height, 16, true, analysis.Object, metadata);
+                LiveStackItem item = new("unused.fits", "target", "L", 60, 100, 10, -1, -1, width, height, 16, true, analysis.Object, metadata);
                 LiveStackTab red = new(profile.Object, new LiveStackBag("target", LiveStackBag.RED_OSC,
                     new ImageProperties(width, height, 16, true, 100, 10), metadata, new()));
                 using ImageBufferLease frame = ImageBufferPool.Shared.Rent(pixels.Length);

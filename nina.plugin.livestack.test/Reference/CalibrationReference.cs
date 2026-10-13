@@ -71,19 +71,23 @@ namespace NINA.Plugin.Livestack.TestSupport {
             }
         }
 
-        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset, string inFilter, bool isBayered) {
+        private static bool MatchesBinning(CalibrationFrameMeta x, int binX, int binY) {
+            return (x.BinX == binX && x.BinY == binY) || (x.BinX == -1 && x.BinY == -1);
+        }
+
+        private CalibrationMaster GetBiasMaster(int width, int height, int gain, int offset, int binX, int binY, string inFilter, bool isBayered) {
             var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
             CalibrationFrameMeta meta = null;
             if (BiasLibrary?.Count > 0) {
-                meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.Width == width && x.Height == height);
+                meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 if (meta == null) {
-                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height);
+                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 }
                 if (meta == null) {
-                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height);
+                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 }
                 if (meta == null) {
-                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height);
+                    meta = BiasLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 }
             }
             if (meta == null) {
@@ -97,19 +101,19 @@ namespace NINA.Plugin.Livestack.TestSupport {
             return master;
         }
 
-        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
+        private CalibrationMaster GetDarkMaster(int width, int height, double exposureTime, int gain, int offset, int binX, int binY, string inFilter, bool isBayered) {
             var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
             CalibrationFrameMeta meta = null;
             if (DarkLibrary?.Count > 0) {
-                meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
+                meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 if (meta == null) {
-                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
+                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == gain && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 }
                 if (meta == null) {
-                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
+                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == offset && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 }
                 if (meta == null) {
-                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height);
+                    meta = DarkLibrary.FirstOrDefault(x => x.Gain == -1 && x.Offset == -1 && x.ExposureTime == exposureTime && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
                 }
             }
             if (meta == null) {
@@ -126,11 +130,11 @@ namespace NINA.Plugin.Livestack.TestSupport {
             return master;
         }
 
-        private CalibrationMaster GetFlatMaster(int width, int height, string inFilter, bool isBayered) {
+        private CalibrationMaster GetFlatMaster(int width, int height, int binX, int binY, string inFilter, bool isBayered) {
             var filter = string.IsNullOrWhiteSpace(inFilter) ? LiveStackBag.NOFILTER : inFilter;
             CalibrationFrameMeta meta = null;
             if (FlatLibrary?.Count > 0) {
-                meta = FlatLibrary.FirstOrDefault(x => x.Filter == filter && x.Width == width && x.Height == height);
+                meta = FlatLibrary.FirstOrDefault(x => x.Filter == filter && x.Width == width && x.Height == height && MatchesBinning(x, binX, binY));
             }
             if (meta == null) {
                 return null;
@@ -146,13 +150,13 @@ namespace NINA.Plugin.Livestack.TestSupport {
             return master;
         }
 
-        public float[] ApplyLightFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
+        public float[] ApplyLightFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, int binX, int binY, string inFilter, bool isBayered) {
             CalibrationMaster bias = null;
             if (LivestackMediator.Plugin.UseBiasForLights) {
-                bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
+                bias = GetBiasMaster(width, height, gain, offset, binX, binY, inFilter, isBayered);
             }
-            var dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
-            var flat = GetFlatMaster(width, height, inFilter, isBayered);
+            var dark = GetDarkMaster(width, height, exposureTime, gain, offset, binX, binY, inFilter, isBayered);
+            var flat = GetFlatMaster(width, height, binX, binY, inFilter, isBayered);
 
             var sb = new StringBuilder();
             sb.Append($"Calibrating \"{image.FilePath}\";");
@@ -209,11 +213,11 @@ namespace NINA.Plugin.Livestack.TestSupport {
             return imageArray;
         }
 
-        public float[] ApplyFlatFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, string inFilter, bool isBayered) {
-            var bias = GetBiasMaster(width, height, gain, offset, inFilter, isBayered);
+        public float[] ApplyFlatFrameCalibrationInPlace(CFitsioFITSReader image, int width, int height, double exposureTime, int gain, int offset, int binX, int binY, string inFilter, bool isBayered) {
+            var bias = GetBiasMaster(width, height, gain, offset, binX, binY, inFilter, isBayered);
             CalibrationMaster dark = null;
             if (bias == null) {
-                dark = GetDarkMaster(width, height, exposureTime, gain, offset, inFilter, isBayered);
+                dark = GetDarkMaster(width, height, exposureTime, gain, offset, binX, binY, inFilter, isBayered);
             }
 
             var sb = new StringBuilder();

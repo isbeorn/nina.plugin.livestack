@@ -36,32 +36,39 @@ namespace NINA.Plugin.Livestack {
         private void InitializeLibraries() {
             var darkLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(pluginSettings.GetValueString(nameof(DarkLibrary), "").FromStringToList<CalibrationFrameMeta>());
             var darkLibraryInitialCount = darkLibrary.Count;
+            var darkLibraryBackfilled = false;
             foreach (var item in darkLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"DARK master not found: {item.Path}");
                     darkLibrary.Remove(item);
+                } else if (BackfillBinningIfUnknown(item)) {
+                    darkLibraryBackfilled = true;
                 }
             }
             DarkLibrary = darkLibrary;
-            if (darkLibrary.Count != darkLibraryInitialCount) {
+            if (darkLibrary.Count != darkLibraryInitialCount || darkLibraryBackfilled) {
                 pluginSettings.SetValueString(nameof(DarkLibrary), DarkLibrary.FromListToString());
             }
 
             var biasLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(pluginSettings.GetValueString(nameof(BiasLibrary), "").FromStringToList<CalibrationFrameMeta>());
             var biasLibraryInitialCount = biasLibrary.Count;
+            var biasLibraryBackfilled = false;
             foreach (var item in biasLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"BIAS master not found: {item.Path}");
                     biasLibrary.Remove(item);
+                } else if (BackfillBinningIfUnknown(item)) {
+                    biasLibraryBackfilled = true;
                 }
             }
             BiasLibrary = biasLibrary;
-            if (biasLibrary.Count != biasLibraryInitialCount) {
+            if (biasLibrary.Count != biasLibraryInitialCount || biasLibraryBackfilled) {
                 pluginSettings.SetValueString(nameof(BiasLibrary), BiasLibrary.FromListToString());
             }
 
             var flatLibrary = new AsyncObservableCollection<CalibrationFrameMeta>(pluginSettings.GetValueString(nameof(FlatLibrary), "").FromStringToList<CalibrationFrameMeta>());
             var flatLibraryInitialCount = flatLibrary.Count;
+            var flatLibraryBackfilled = false;
             foreach (var item in flatLibrary.ToList()) {
                 if (!File.Exists(item.Path)) {
                     Logger.Warning($"Flat master not found: {item.Path}");
@@ -69,14 +76,33 @@ namespace NINA.Plugin.Livestack {
                 } else if (double.IsNaN(item.Mean)) {
                     Logger.Warning($"Flat master meta info does not contain calculated mean value: {item.Path}");
                     flatLibrary.Remove(item);
+                } else if (BackfillBinningIfUnknown(item)) {
+                    flatLibraryBackfilled = true;
                 }
             }
             FlatLibrary = flatLibrary;
-            if (flatLibrary.Count != flatLibraryInitialCount) {
+            if (flatLibrary.Count != flatLibraryInitialCount || flatLibraryBackfilled) {
                 pluginSettings.SetValueString(nameof(FlatLibrary), FlatLibrary.FromListToString());
             }
 
             SessionFlatLibrary = new AsyncObservableCollection<CalibrationFrameMeta>();
+        }
+
+        private bool BackfillBinningIfUnknown(CalibrationFrameMeta item) {
+            if (item.BinX != -1 || item.BinY != -1) {
+                return false;
+            }
+            try {
+                using (var fits = new CFitsioFITSReader(item.Path)) {
+                    var metaData = fits.ReadHeader().ExtractMetaData();
+                    item.BinX = metaData.Camera.BinX;
+                    item.BinY = metaData.Camera.BinY;
+                }
+                return true;
+            } catch (Exception ex) {
+                Logger.Warning($"Failed to read binning from FITS header for {item.Path}: {ex.Message}");
+                return false;
+            }
         }
 
         [ObservableProperty]
@@ -148,6 +174,8 @@ namespace NINA.Plugin.Livestack {
                 var height = 0;
                 int gain = -1;
                 int offset = -1;
+                int binX = -1;
+                int binY = -1;
                 string filter = "";
                 double exposureTime = 0;
                 float mean = float.NaN;
@@ -161,6 +189,8 @@ namespace NINA.Plugin.Livestack {
                         imageType = metaData.Image.ImageType;
                         gain = metaData.Camera.Gain;
                         offset = metaData.Camera.Offset;
+                        binX = metaData.Camera.BinX;
+                        binY = metaData.Camera.BinY;
                         filter = metaData.FilterWheel.Filter;
                         exposureTime = double.IsNaN(metaData.Image.ExposureTime) ? 0 : metaData.Image.ExposureTime;
                         width = fits.Width;
@@ -181,6 +211,8 @@ namespace NINA.Plugin.Livestack {
 
                 frame.Gain = gain;
                 frame.Offset = offset;
+                frame.BinX = binX;
+                frame.BinY = binY;
                 frame.Filter = filter;
                 frame.ExposureTime = exposureTime;
                 frame.Width = width;
@@ -213,6 +245,8 @@ namespace NINA.Plugin.Livestack {
                 var height = 0;
                 int gain = -1;
                 int offset = -1;
+                int binX = -1;
+                int binY = -1;
                 string filter = "";
                 double exposureTime = 0;
                 float mean = float.NaN;
@@ -226,6 +260,8 @@ namespace NINA.Plugin.Livestack {
                         imageType = metaData.Image.ImageType;
                         gain = metaData.Camera.Gain;
                         offset = metaData.Camera.Offset;
+                        binX = metaData.Camera.BinX;
+                        binY = metaData.Camera.BinY;
                         filter = metaData.FilterWheel.Filter;
                         exposureTime = double.IsNaN(metaData.Image.ExposureTime) ? 0 : metaData.Image.ExposureTime;
                         width = fits.Width;
@@ -250,6 +286,8 @@ namespace NINA.Plugin.Livestack {
 
                 frame.Gain = gain;
                 frame.Offset = offset;
+                frame.BinX = binX;
+                frame.BinY = binY;
                 frame.Filter = filter;
                 frame.ExposureTime = exposureTime;
                 frame.Width = width;
