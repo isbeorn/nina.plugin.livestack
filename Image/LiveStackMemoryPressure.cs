@@ -2,6 +2,7 @@ using NINA.Core.Utility;
 using System;
 
 namespace NINA.Plugin.Livestack.Image {
+
     internal static class LiveStackMemoryPressure {
         private static readonly object syncRoot = new();
         private static DateTimeOffset lastCollection = DateTimeOffset.MinValue;
@@ -18,7 +19,7 @@ namespace NINA.Plugin.Livestack.Image {
                 lastCollection = DateTimeOffset.UtcNow;
             }
             ImageBufferPool.Shared.Trim();
-            Logger.Info($"Live Stack released cached scratch buffers under memory pressure ({reason}).");
+            Logger.Debug($"Live Stack released cached scratch buffers under memory pressure ({reason}).");
             GC.Collect(2, GCCollectionMode.Optimized, blocking: false, compacting: false);
         }
 
