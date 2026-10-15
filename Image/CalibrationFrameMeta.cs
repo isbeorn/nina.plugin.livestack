@@ -9,13 +9,17 @@ namespace NINA.Plugin.Livestack.Image {
 
         public CalibrationFrameMeta() {
             Mean = float.NaN;
+            BinX = -1;
+            BinY = -1;
         }
 
-        public CalibrationFrameMeta(CalibrationFrameType type, string path, int gain, int offset, double exposureTime, string filter, int width, int height, float mean) {
+        public CalibrationFrameMeta(CalibrationFrameType type, string path, int gain, int offset, int binX, int binY, double exposureTime, string filter, int width, int height, float mean) {
             Type = type;
             Path = path;
             Gain = gain;
             Offset = offset;
+            BinX = binX;
+            BinY = binY;
             ExposureTime = exposureTime;
             Filter = filter;
             Width = width;
@@ -34,6 +38,12 @@ namespace NINA.Plugin.Livestack.Image {
 
         [JsonProperty]
         public int Offset { get; set; }
+
+        [JsonProperty]
+        public int BinX { get; set; }
+
+        [JsonProperty]
+        public int BinY { get; set; }
 
         [JsonProperty]
         public double ExposureTime { get; set; }
@@ -56,6 +66,8 @@ namespace NINA.Plugin.Livestack.Image {
                        Path == other.Path &&
                        Gain == other.Gain &&
                        Offset == other.Offset &&
+                       BinX == other.BinX &&
+                       BinY == other.BinY &&
                        ExposureTime.Equals(other.ExposureTime) &&
                        Filter == other.Filter &&
                        Width == other.Width &&
@@ -72,6 +84,8 @@ namespace NINA.Plugin.Livestack.Image {
                 hash = hash * 23 + (Path?.GetHashCode() ?? 0);
                 hash = hash * 23 + Gain.GetHashCode();
                 hash = hash * 23 + Offset.GetHashCode();
+                hash = hash * 23 + BinX.GetHashCode();
+                hash = hash * 23 + BinY.GetHashCode();
                 hash = hash * 23 + ExposureTime.GetHashCode();
                 hash = hash * 23 + (Filter?.GetHashCode() ?? 0);
                 hash = hash * 23 + Width.GetHashCode();

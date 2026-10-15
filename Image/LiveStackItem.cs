@@ -17,6 +17,8 @@ namespace NINA.Plugin.Livestack.Image {
                              double exposureTime,
                              int gain,
                              int offset,
+                             int binX,
+                             int binY,
                              int width,
                              int height,
                              int bitDepth,
@@ -28,6 +30,8 @@ namespace NINA.Plugin.Livestack.Image {
             ExposureTime = exposureTime;
             Gain = gain;
             Offset = offset;
+            BinX = binX;
+            BinY = binY;
             Target = CoreUtil.ReplaceAllInvalidFilenameChars(target);
             Width = width;
             Height = height;
@@ -52,6 +56,8 @@ namespace NINA.Plugin.Livestack.Image {
         public double ExposureTime { get; }
         public int Gain { get; }
         public int Offset { get; }
+        public int BinX { get; }
+        public int BinY { get; }
         public int Width { get; }
         public int Height { get; }
         public int BitDepth { get; }

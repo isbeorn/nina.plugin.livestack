@@ -340,7 +340,7 @@ namespace nina.plugin.livestack.test {
             Mock<IStarDetectionAnalysis> analysis = new();
             analysis.SetupGet(a => a.StarList).Returns(detections);
             analysis.SetupGet(a => a.HFR).Returns(3);
-            return new LiveStackItem("diagnostic.fits", "target", "L", 60, 100, 10, 1000, 1000, bitDepth, false, analysis.Object, new ImageMetaData());
+            return new LiveStackItem("diagnostic.fits", "target", "L", 60, 100, 10, -1, -1, 1000, 1000, bitDepth, false, analysis.Object, new ImageMetaData());
         }
     }
 }

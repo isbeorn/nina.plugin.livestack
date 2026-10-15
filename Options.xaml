@@ -368,6 +368,20 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="*" Header="Bin X">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center" Text="{Binding BinX, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="*" Header="Bin Y">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center" Text="{Binding BinY, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                     <DataGridTemplateColumn Width="30" Header="">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
@@ -453,6 +467,20 @@
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="*" Header="Bin X">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center" Text="{Binding BinX, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="*" Header="Bin Y">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center" Text="{Binding BinY, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
                                     <DataGridTemplateColumn Width="30" Header="">
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
@@ -521,6 +549,20 @@
                                         <DataGridTemplateColumn.CellTemplate>
                                             <DataTemplate>
                                                 <TextBlock VerticalAlignment="Center" Text="{Binding Height}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="*" Header="Bin X">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center" Text="{Binding BinX, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
+                                            </DataTemplate>
+                                        </DataGridTemplateColumn.CellTemplate>
+                                    </DataGridTemplateColumn>
+                                    <DataGridTemplateColumn Width="*" Header="Bin Y">
+                                        <DataGridTemplateColumn.CellTemplate>
+                                            <DataTemplate>
+                                                <TextBlock VerticalAlignment="Center" Text="{Binding BinY, Converter={StaticResource MinusOneToIgnoreStringConverter}}" />
                                             </DataTemplate>
                                         </DataGridTemplateColumn.CellTemplate>
                                     </DataGridTemplateColumn>
@@ -682,6 +724,8 @@
                     <RowDefinition />
                     <RowDefinition />
                     <RowDefinition />
+                    <RowDefinition />
+                    <RowDefinition />
                 </Grid.RowDefinitions>
 
                 <TextBlock>File Location</TextBlock>
@@ -713,7 +757,25 @@
                     Margin="5,0,0,0"
                     Text="{Binding Context.Height}" />
 
-                <Grid Grid.Row="4">
+                <TextBlock Grid.Row="4">Bin X</TextBlock>
+                <ninactrl:HintTextBox
+                    Grid.Row="4"
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    VerticalAlignment="Center"
+                    HintText="Ignore"
+                    Text="{Binding Context.BinX, Converter={StaticResource MinusOneToEmptyStringConverter}}" />
+
+                <TextBlock Grid.Row="5">Bin Y</TextBlock>
+                <ninactrl:HintTextBox
+                    Grid.Row="5"
+                    Grid.Column="1"
+                    Margin="5,0,0,0"
+                    VerticalAlignment="Center"
+                    HintText="Ignore"
+                    Text="{Binding Context.BinY, Converter={StaticResource MinusOneToEmptyStringConverter}}" />
+
+                <Grid Grid.Row="6">
                     <TextBlock>Filter</TextBlock>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
@@ -729,7 +791,7 @@
                     </Grid.Style>
                 </Grid>
                 <Grid
-                    Grid.Row="4"
+                    Grid.Row="6"
                     Grid.Column="1"
                     Margin="5,0,0,0">
                     <TextBox Text="{Binding Context.Filter}" />
@@ -747,7 +809,7 @@
                     </Grid.Style>
                 </Grid>
 
-                <Grid Grid.Row="5">
+                <Grid Grid.Row="7">
                     <TextBlock>Exposure Time</TextBlock>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
@@ -763,7 +825,7 @@
                     </Grid.Style>
                 </Grid>
                 <Grid
-                    Grid.Row="5"
+                    Grid.Row="7"
                     Grid.Column="1"
                     Margin="5,0,0,0">
                     <TextBox Text="{Binding Context.ExposureTime}" />
@@ -781,7 +843,7 @@
                     </Grid.Style>
                 </Grid>
 
-                <Grid Grid.Row="6">
+                <Grid Grid.Row="8">
                     <TextBlock>Gain</TextBlock>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
@@ -794,7 +856,7 @@
                     </Grid.Style>
                 </Grid>
                 <Grid
-                    Grid.Row="6"
+                    Grid.Row="8"
                     Grid.Column="1"
                     Margin="5,0,0,0">
                     <ninactrl:HintTextBox
@@ -812,7 +874,7 @@
                     </Grid.Style>
                 </Grid>
 
-                <Grid Grid.Row="7">
+                <Grid Grid.Row="9">
                     <TextBlock>Offset</TextBlock>
                     <Grid.Style>
                         <Style TargetType="{x:Type Grid}">
@@ -825,7 +887,7 @@
                     </Grid.Style>
                 </Grid>
                 <Grid
-                    Grid.Row="7"
+                    Grid.Row="9"
                     Grid.Column="1"
                     Margin="5,0,0,0">
                     <ninactrl:HintTextBox
@@ -844,7 +906,7 @@
                 </Grid>
 
                 <Button
-                    Grid.Row="8"
+                    Grid.Row="10"
                     Height="25"
                     Margin="5"
                     util:ButtonHelper.DialogResult="False">
@@ -852,7 +914,7 @@
                 </Button>
 
                 <Button
-                    Grid.Row="8"
+                    Grid.Row="10"
                     Grid.Column="1"
                     Height="25"
                     Margin="5"

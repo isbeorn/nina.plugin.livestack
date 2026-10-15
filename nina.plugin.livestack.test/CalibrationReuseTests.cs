@@ -69,9 +69,9 @@ namespace nina.plugin.livestack.test {
             string light = Path.Combine(host.DirectoryPath, "light.fits"), bias = Path.Combine(host.DirectoryPath, "bias.fits");
             Write(light, 0.8f, compressed: false);
             Write(bias, 0.1f, compressed: true);
-            ChangeLibrary(() => LivestackMediator.CalibrationVM.BiasLibrary.Add(new CalibrationFrameMeta(CalibrationFrameType.BIAS, bias, 100, 10, 0, "L", Width, Height, 0.1f)));
+            ChangeLibrary(() => LivestackMediator.CalibrationVM.BiasLibrary.Add(new CalibrationFrameMeta(CalibrationFrameType.BIAS, bias, 100, 10, -1, -1, 0, "L", Width, Height, 0.1f)));
             var image = host.Image().Object;
-            return new LiveStackItem(light, "target", "L", 60, 100, 10, Width, Height, 16, false, image.StarDetectionAnalysis, image.MetaData);
+            return new LiveStackItem(light, "target", "L", 60, 100, 10, -1, -1, Width, Height, 16, false, image.StarDetectionAnalysis, image.MetaData);
         }
 
         private static void Write(string path, float value, bool compressed) {

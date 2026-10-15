@@ -81,6 +81,7 @@ namespace NINA.Plugin.Livestack.Replay {
                 }
             }
             return new CalibrationFrameMeta(type, path, metadata.Camera.Gain, metadata.Camera.Offset,
+                metadata.Camera.BinX, metadata.Camera.BinY,
                 double.IsFinite(metadata.Image.ExposureTime) ? metadata.Image.ExposureTime : 0,
                 string.IsNullOrWhiteSpace(metadata.FilterWheel.Filter) ? LiveStackBag.NOFILTER : metadata.FilterWheel.Filter,
                 reader.Width, reader.Height, type == CalibrationFrameType.FLAT ? (float)(sum / ((long)reader.Width * reader.Height)) : float.NaN);

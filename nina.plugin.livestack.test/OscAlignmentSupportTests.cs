@@ -177,7 +177,7 @@ namespace nina.plugin.livestack.test {
         }
 
         private static async Task<bool> Stack(CaptureTestContext host, LiveStackTab red, StarDetectionAnalysis analysis, CancellationToken token = default) {
-            LiveStackItem item = new("unused.fits", "target", "L", 60, 100, 10, 1000, 1000, 16, true, analysis, new ImageMetaData());
+            LiveStackItem item = new("unused.fits", "target", "L", 60, 100, 10, -1, -1, 1000, 1000, 16, true, analysis, new ImageMetaData());
             using ImageBufferLease pixels = ImageBufferPool.Shared.Rent(1000000);
             Array.Fill(pixels.Buffer, 0.4f);
             MethodInfo stack = typeof(LivestackDockable).GetMethod("StackOSC", BindingFlags.Instance | BindingFlags.NonPublic)!;

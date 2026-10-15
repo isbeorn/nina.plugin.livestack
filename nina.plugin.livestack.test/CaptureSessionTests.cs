@@ -101,7 +101,7 @@ namespace nina.plugin.livestack.test {
                 string path = Path.Combine(host.DirectoryPath, index + ".fits");
                 File.WriteAllText(path, "frame");
                 IImageData image = host.Image().Object;
-                return new LiveStackItem(path, "target", "L", 60, 100, 10, 16, 16, 16, false, image.StarDetectionAnalysis, image.MetaData);
+                return new LiveStackItem(path, "target", "L", 60, 100, 10, -1, -1, 16, 16, 16, false, image.StarDetectionAnalysis, image.MetaData);
             };
             await session.EnqueueBackgroundAsync(prepare(0));
             await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
@@ -260,7 +260,7 @@ namespace nina.plugin.livestack.test {
                 string path = Path.Combine(host.DirectoryPath, index + ".fits");
                 File.WriteAllText(path, "frame");
                 IImageData image = host.Image().Object;
-                return Task.FromResult(new LiveStackItem(path, "target", "L", 60, 100, 10, 16, 16, 16, false, image.StarDetectionAnalysis, image.MetaData));
+                return Task.FromResult(new LiveStackItem(path, "target", "L", 60, 100, 10, -1, -1, 16, 16, 16, false, image.StarDetectionAnalysis, image.MetaData));
             })).ToArray();
             try {
                 await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));

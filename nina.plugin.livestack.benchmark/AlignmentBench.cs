@@ -156,7 +156,7 @@ namespace nina.plugin.livestack.benchmark {
             alignImage = toAlignImageRender;
 
             using (CFitsioFITSReader reader = new CFitsioFITSReader(ToBeAlignedImage)) {
-                alignArray = new CalibrationManagerSimd().ApplyLightFrameCalibrationInPlace(reader, toAlignImage.Properties.Width, toAlignImage.Properties.Height, 0, -1, -1, "", false);
+                alignArray = new CalibrationManagerSimd().ApplyLightFrameCalibrationInPlace(reader, toAlignImage.Properties.Width, toAlignImage.Properties.Height, 0, -1, -1, -1, -1, "", false);
             }
         }
 
